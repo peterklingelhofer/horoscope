@@ -1,5 +1,5 @@
 // src/App.tsx
-// Renders form and chart, with no geolocation button
+// Adds a toggle between NYT star-aligned and tropical Sun sign modes
 // Never end code comments with periods
 
 import { useEffect, useMemo, useState } from "react"
@@ -14,6 +14,8 @@ type FormState = {
   latitude: string
   longitude: string
 }
+
+export type SignMode = "nytimes" | "tropical"
 
 function App() {
   const [formState, setFormState] = useState<FormState>(() => {
@@ -30,6 +32,9 @@ function App() {
       longitude: "",
     }
   })
+
+  // Default to NYT star-aligned mode
+  const [signMode, setSignMode] = useState<SignMode>("nytimes")
 
   const [snapshot, setSnapshot] = useState<ChartSnapshot | null>(null)
   const [errorText, setErrorText] = useState<string | null>(null)
@@ -92,12 +97,48 @@ function App() {
     Number.isFinite(snapshot.moon.tropical.eclipticLongitude) &&
     Number.isFinite(snapshot.ascendant.eclipticLongitude)
 
+  const sunLabelByMode =
+    signMode === "nytimes"
+      ? snapshot?.sun.constellation.name
+      : snapshot?.sun.tropical.sign
+
   return (
     <main style={{ display: "grid", gap: 24 }}>
       <h1 style={{ margin: 0 }}>Your birth chart, minimally and accurately</h1>
       <p style={{ marginTop: -12 }}>
         Enter birth date, exact time, and location to see Sun, Moon, and Ascendant in a clean tropical wheel
       </p>
+
+      {/* Mode toggle */}
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          alignItems: "center",
+          flexWrap: "wrap",
+        }}
+      >
+        <label>
+          <input
+            type="radio"
+            name="signMode"
+            value="nytimes"
+            checked={signMode === "nytimes"}
+            onChange={() => setSignMode("nytimes")}
+          />
+          <span style={{ marginLeft: 6 }}>Star-aligned Sun sign (NYT)</span>
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="signMode"
+            value="tropical"
+            checked={signMode === "tropical"}
+            onChange={() => setSignMode("tropical")}
+          />
+          <span style={{ marginLeft: 6 }}>Tropical Sun sign</span>
+        </label>
+      </div>
 
       <BirthForm value={formState} onChange={setFormState} />
 
@@ -111,8 +152,18 @@ function App() {
           tropicalSignSun={snapshot!.sun.tropical.sign}
           tropicalSignMoon={snapshot!.moon.tropical.sign}
           tropicalSignAscendant={snapshot!.ascendant.sign}
+          sunConstellationName={snapshot!.sun.constellation.name}
+          signMode={signMode}
           isComputing={isComputing}
         />
+      )}
+
+      {/* Small legend line showing both interpretations for clarity */}
+      {snapshot && (
+        <div style={{ fontSize: 13, opacity: 0.9 }}>
+          Sun • NYT star-aligned: <strong>{snapshot.sun.constellation.name}</strong> • Tropical:{" "}
+          <strong>{snapshot.sun.tropical.sign}</strong>
+        </div>
       )}
     </main>
   )

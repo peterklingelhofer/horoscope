@@ -1,7 +1,7 @@
 // src/astro.ts
-// Compute Sun and Moon tropical longitudes, IAU constellations, and the Ascendant (rising)
-// Uses Astronomy Engine for precise ephemerides and sidereal time
-// Ascendant formula per Wikipedia and Meeus, using local sidereal time, latitude, and obliquity
+// Compute Sun and Moon tropical longitudes, IAU constellations, Ascendant
+// Adds constellationNYT: constellation behind the Sun at 12:00 UTC in the current year on the entered month/day
+// Constellation classification uses J2000 astrometric RA/Dec with a zero-parallax observer at lat=0 lon=0
 // Never end code comments with periods
 
 import * as Astronomy from "astronomy-engine"
@@ -13,11 +13,20 @@ export type SunSnapshot = {
     sign: string
     signIndex: number
   }
+  // constellation at exact birth datetime
   constellation: {
     name: string
     abbreviation: string
     ra: number
     dec: number
+  }
+  // constellation at 12:00 UTC in the current year for the same month/day, per NYT method
+  constellationNYT: {
+    name: string
+    abbreviation: string
+    ra: number
+    dec: number
+    when: Date
   }
 }
 
@@ -66,12 +75,15 @@ const SIGN_LABELS: readonly string[] = [
   "Pisces",
 ]
 
+// zero-parallax observer to mimic geocenter in this API
+const GEOCENTER = new Astronomy.Observer(0, 0, 0)
+
 export function computeSunSnapshot(args: {
   birthDateTime: Date
   latitude: number
   longitude: number
 }): SunSnapshot {
-  const { birthDateTime, latitude, longitude } = InputSchema.parse(args)
+  const { birthDateTime } = InputSchema.parse(args)
   const time = new Astronomy.AstroTime(birthDateTime)
 
   // Sun tropical ecliptic longitude of date
@@ -81,16 +93,30 @@ export function computeSunSnapshot(args: {
   const sunSignIndex = Math.floor(sunElon / 30) % 12
   const sunSign = SIGN_LABELS[sunSignIndex]
 
-  // Sun constellation via J2000 apparent RA/Dec
-  const observer = new Astronomy.Observer(latitude, longitude, 0)
+  // Constellation at birth datetime in J2000 astrometric
   const equJ2000 = Astronomy.Equator(
     Astronomy.Body.Sun,
     time,
-    observer,
+    GEOCENTER,
     false,
-    true
+    false
   )
   const c = Astronomy.Constellation(equJ2000.ra, equJ2000.dec)
+
+  // NYT method: same month/day, current year, 12:00 UTC
+  const month = birthDateTime.getMonth() // 0-based
+  const day = birthDateTime.getDate()
+  const now = new Date()
+  const nytWhen = new Date(Date.UTC(now.getFullYear(), month, day, 12, 0, 0))
+  const timeNYT = new Astronomy.AstroTime(nytWhen)
+  const equJ2000NYT = Astronomy.Equator(
+    Astronomy.Body.Sun,
+    timeNYT,
+    GEOCENTER,
+    false,
+    false
+  )
+  const cNYT = Astronomy.Constellation(equJ2000NYT.ra, equJ2000NYT.dec)
 
   return {
     tropical: {
@@ -104,6 +130,13 @@ export function computeSunSnapshot(args: {
       ra: equJ2000.ra,
       dec: equJ2000.dec,
     },
+    constellationNYT: {
+      name: cNYT.name,
+      abbreviation: cNYT.symbol,
+      ra: equJ2000NYT.ra,
+      dec: equJ2000NYT.dec,
+      when: nytWhen,
+    },
   }
 }
 
@@ -115,7 +148,7 @@ export function computeChartSnapshot(args: {
   const { birthDateTime, latitude, longitude } = InputSchema.parse(args)
   const time = new Astronomy.AstroTime(birthDateTime)
 
-  // Sun
+  // Sun snapshots
   const sun = computeSunSnapshot({ birthDateTime, latitude, longitude })
 
   // Moon tropical ecliptic longitude of date
@@ -125,14 +158,13 @@ export function computeChartSnapshot(args: {
   const moonSignIndex = Math.floor(moonElon / 30) % 12
   const moonSign = SIGN_LABELS[moonSignIndex]
 
-  // Moon constellation by J2000 RA/Dec
-  const observer = new Astronomy.Observer(latitude, longitude, 0)
+  // Moon constellation in J2000 astrometric
   const moonEquJ2000 = Astronomy.Equator(
     Astronomy.Body.Moon,
     time,
-    observer,
+    GEOCENTER,
     false,
-    true
+    false
   )
   const mc = Astronomy.Constellation(moonEquJ2000.ra, moonEquJ2000.dec)
 
@@ -148,15 +180,13 @@ export function computeChartSnapshot(args: {
     },
   }
 
-  // Ascendant using local sidereal time θL, latitude φ, obliquity ε
-  // λAsc = atan2( -cos θL, sin θL cos ε + tan φ sin ε ) in degrees
-  // Then pick the easterly intersection per the final rule
-  const gastHours = Astronomy.SiderealTime(time) // Greenwich Apparent Sidereal Time hours
-  const lstHours = gastHours + longitude / 15 // east longitudes positive
+  // Ascendant via local sidereal time, latitude, obliquity
+  const gastHours = Astronomy.SiderealTime(time)
+  const lstHours = gastHours + longitude / 15
   const thetaDeg = normalizeDegrees(lstHours * 15)
   const theta = deg2rad(thetaDeg)
   const phi = deg2rad(latitude)
-  const eps = deg2rad(23.4392911) // J2000 obliquity for stable results
+  const eps = deg2rad(23.4392911)
 
   const y = -Math.cos(theta)
   const x = Math.sin(theta) * Math.cos(eps) + Math.tan(phi) * Math.sin(eps)
