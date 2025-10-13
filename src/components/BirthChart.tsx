@@ -1,9 +1,5 @@
 // src/components/BirthChart.tsx
-// Rotate the ring labels when toggling modes instead of drawing a second ring
-// - Tropical mode: 12 equal signs, canonical order, no rotation
-// - NYT mode: use a 13-name sequence that includes Ophiuchus and rotate so the Sun's label matches the NYT star-aligned name
-// Lines for Sun/Moon/Asc remain physically correct in the sky
-// Defensive against undefined props
+// Rotates the labels when toggling modes; caption now says "Star-aligned" instead of "NYT"
 // Never end code comments with periods
 
 import type { SignMode } from "../App"
@@ -12,10 +8,10 @@ type Props = {
   eclipticLongitudeSun: number | undefined
   eclipticLongitudeMoon: number | undefined
   eclipticLongitudeAscendant: number | undefined
-  tropicalSignSun: string | undefined            // caption label chosen by App based on mode
+  tropicalSignSun: string | undefined
   tropicalSignMoon: string | undefined
   tropicalSignAscendant: string | undefined
-  sunConstellationName: string | undefined       // NYT star-aligned name
+  sunConstellationName: string | undefined
   signMode: SignMode
   isComputing: boolean
 }
@@ -35,9 +31,7 @@ const TROPICAL_SIGNS: readonly string[] = [
   "Pisces",
 ]
 
-// Zodiac order along the ecliptic including Ophiuchus between Scorpio and Sagittarius
-// Labels are still drawn in equal 360/N slices for clarity, matching the user's request to just move labels
-const NYT_SIGNS_WITH_OPHIUCHUS: readonly string[] = [
+const STAR_ALIGNED_LABELS: readonly string[] = [
   "Aries",
   "Taurus",
   "Gemini",
@@ -99,22 +93,21 @@ export function BirthChart({
   const moon = toPoint(eclipticLongitudeMoon)
   const asc = toPoint(eclipticLongitudeAscendant)
 
-  // Label plan
-  // - Tropical: 12 labels, 30° each, canonical order
-  // - NYT: 13 labels including Ophiuchus, still equal slices, but rotate the sequence so the slice that contains the Sun points to sunConstellationName
-  const usingNYT = signMode === "nytimes"
-  const baseLabels = usingNYT ? NYT_SIGNS_WITH_OPHIUCHUS : TROPICAL_SIGNS
+  const usingStarAligned = signMode === "nytimes"
+  const baseLabels = usingStarAligned ? STAR_ALIGNED_LABELS : TROPICAL_SIGNS
   const slices = baseLabels.length
   const stepDeg = 360 / slices
 
-  // Determine rotation so that the slice index for the Sun angle maps to the NYT name
+  // Rotate labels so that the Sun's slice name matches the active mode's primary label
   let rotatedLabels = baseLabels
-  if (usingNYT) {
+  if (usingStarAligned) {
     const sunElon = safeNumber(eclipticLongitudeSun, 0)
     const sunSliceIndex = Math.floor(sunElon / stepDeg) % slices
     const targetIndex = Math.max(
       0,
-      baseLabels.findIndex((s) => s.toLowerCase() === String(sunConstellationName ?? "").toLowerCase())
+      baseLabels.findIndex(
+        (s) => s.toLowerCase() === String(sunConstellationName ?? "").toLowerCase()
+      )
     )
     const hasTarget = targetIndex >= 0
     if (hasTarget) {
@@ -123,7 +116,6 @@ export function BirthChart({
     }
   }
 
-  // Draw
   return (
     <figure
       style={{
@@ -141,10 +133,8 @@ export function BirthChart({
         role="img"
         aria-label="Birth chart wheel"
       >
-        {/* base ring */}
         <circle cx={center} cy={center} r={radius} fill="none" stroke="#888" strokeWidth={2} />
 
-        {/* radial dividers and labels for current mode, possibly rotated */}
         {rotatedLabels.map((label, idx) => {
           const angle = ((-idx * stepDeg) * Math.PI) / 180
           const x0 = center + radius * Math.cos(angle)
@@ -162,7 +152,10 @@ export function BirthChart({
                 dominantBaseline="middle"
                 fontSize={12}
                 fill="#ddd"
-                style={{ fontWeight: usingNYT && label === (sunConstellationName ?? "") ? 700 : 600 }}
+                style={{
+                  fontWeight:
+                    usingStarAligned && label === (sunConstellationName ?? "") ? 700 : 600,
+                }}
               >
                 {label}
               </text>
@@ -219,9 +212,9 @@ export function BirthChart({
         </text>
       </svg>
 
-      {/* Caption — restore the text toggle behavior */}
       <figcaption style={{ fontSize: 14, opacity: 0.9, textAlign: "center" }}>
-        Sun {tropicalSignSun ?? "—"} {usingNYT ? "(NYT star-aligned)" : "(Tropical)"} • Moon {tropicalSignMoon ?? "—"} • Ascendant {tropicalSignAscendant ?? "—"}
+        Sun {tropicalSignSun ?? "—"} {usingStarAligned ? "(Star-aligned)" : "(Tropical)"} • Moon{" "}
+        {tropicalSignMoon ?? "—"} • Ascendant {tropicalSignAscendant ?? "—"}
         {isComputing ? " • recalculating…" : ""}
       </figcaption>
 
