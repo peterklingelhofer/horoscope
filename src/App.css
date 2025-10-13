@@ -1,0 +1,25 @@
+/* src/App.css */
+#root {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+input,
+button {
+  padding: 0.6em 0.8em;
+  border-radius: 8px;
+  border: 1px solid #444;
+  background: #1a1a1a;
+  color: #fff;
+}
+
+input:focus,
+button:focus {
+  outline: 3px solid #646cff88;
+  border-color: #646cff88;
+}
+
+button:hover {
+  border-color: #646cff;
+}
