@@ -1,8 +1,11 @@
 // src/App.tsx
+// Renders form and chart, with no geolocation button
+// Never end code comments with periods
+
 import { useEffect, useMemo, useState } from "react"
 import { BirthChart } from "./components/BirthChart"
 import { BirthForm } from "./components/BirthForm"
-import { computeSunSnapshot, type SunSnapshot } from "./astro"
+import { computeChartSnapshot, type ChartSnapshot } from "./astro"
 import "./App.css"
 
 type FormState = {
@@ -28,7 +31,7 @@ function App() {
     }
   })
 
-  const [sunSnapshot, setSunSnapshot] = useState<SunSnapshot | null>(null)
+  const [snapshot, setSnapshot] = useState<ChartSnapshot | null>(null)
   const [errorText, setErrorText] = useState<string | null>(null)
   const [isComputing, setIsComputing] = useState(false)
 
@@ -42,7 +45,10 @@ function App() {
   }, [formState])
 
   useEffect(() => {
-    if (!canCompute) return
+    if (!canCompute) {
+      setSnapshot(null)
+      return
+    }
     setIsComputing(true)
     setErrorText(null)
     try {
@@ -60,14 +66,13 @@ function App() {
         throw new Error("Latitude must be between -90 and 90, longitude between -180 and 180")
       }
 
-      const snapshot = computeSunSnapshot({
+      const chart = computeChartSnapshot({
         birthDateTime,
         latitude,
         longitude,
       })
-      setSunSnapshot(snapshot)
+      setSnapshot(chart)
     } catch (err) {
-      // Normalize any thrown value to a readable message
       const message =
         err instanceof Error
           ? err.message
@@ -75,59 +80,39 @@ function App() {
           ? err
           : "Unexpected error"
       setErrorText(message)
-      setSunSnapshot(null)
+      setSnapshot(null)
     } finally {
       setIsComputing(false)
     }
   }, [canCompute, formState])
 
+  const showChart =
+    snapshot &&
+    Number.isFinite(snapshot.sun.tropical.eclipticLongitude) &&
+    Number.isFinite(snapshot.moon.tropical.eclipticLongitude) &&
+    Number.isFinite(snapshot.ascendant.eclipticLongitude)
+
   return (
     <main style={{ display: "grid", gap: 24 }}>
       <h1 style={{ margin: 0 }}>Your birth chart, minimally and accurately</h1>
       <p style={{ marginTop: -12 }}>
-        Enter birth date, exact time, and location to compare the tropical sign vs the constellation actually behind the Sun at that moment
+        Enter birth date, exact time, and location to see Sun, Moon, and Ascendant in a clean tropical wheel
       </p>
 
-      <BirthForm
-        value={formState}
-        onChange={setFormState}
-        onUseGeolocation={(coords) => {
-          setFormState((prev) => ({
-            ...prev,
-            latitude: String(coords.latitude),
-            longitude: String(coords.longitude),
-          }))
-        }}
-      />
+      <BirthForm value={formState} onChange={setFormState} />
 
       {errorText && <div style={{ color: "#ff6b6b" }}>{errorText}</div>}
 
-      {sunSnapshot && (
-        <div style={{ display: "grid", gap: 16 }}>
-          <section
-            style={{
-              display: "grid",
-              gap: 8,
-              justifyItems: "center",
-              textAlign: "center",
-            }}
-          >
-            <strong>
-              Tropical Sun sign: {sunSnapshot.tropical.sign} • Astronomical constellation: {sunSnapshot.constellation.name}
-            </strong>
-            <div style={{ fontSize: 14, opacity: 0.85 }}>
-              Ecliptic longitude {sunSnapshot.tropical.eclipticLongitude.toFixed(2)}°
-              {" "}• solar RA {sunSnapshot.constellation.ra.toFixed(3)}h • Dec {sunSnapshot.constellation.dec.toFixed(2)}°
-            </div>
-          </section>
-
-          <BirthChart
-            eclipticLongitude={sunSnapshot.tropical.eclipticLongitude}
-            tropicalSign={sunSnapshot.tropical.sign}
-            constellationName={sunSnapshot.constellation.name}
-            isComputing={isComputing}
-          />
-        </div>
+      {showChart && (
+        <BirthChart
+          eclipticLongitudeSun={snapshot!.sun.tropical.eclipticLongitude}
+          eclipticLongitudeMoon={snapshot!.moon.tropical.eclipticLongitude}
+          eclipticLongitudeAscendant={snapshot!.ascendant.eclipticLongitude}
+          tropicalSignSun={snapshot!.sun.tropical.sign}
+          tropicalSignMoon={snapshot!.moon.tropical.sign}
+          tropicalSignAscendant={snapshot!.ascendant.sign}
+          isComputing={isComputing}
+        />
       )}
     </main>
   )
@@ -136,22 +121,17 @@ function App() {
 export default App
 
 function parseLocalDateTime(isoDate: string, time: string): Date {
-  // Accept HH:mm or HH:mm:ss (and defensively trim)
   const cleanTime = time.trim()
   const parts = cleanTime.split(":")
   let hh = "00"
   let mm = "00"
   let ss = "00"
-
   if (parts.length >= 2) {
     ;[hh, mm] = parts
   }
   if (parts.length >= 3) {
     ;[, , ss] = parts
   }
-
-  // Build a local-time Date, not UTC, to match typical birth times
-  // Using numeric args avoids inconsistent parsing across browsers
   const [yStr, mStr, dStr] = isoDate.split("-")
   const y = Number(yStr)
   const mZeroBased = Number(mStr) - 1
@@ -159,6 +139,5 @@ function parseLocalDateTime(isoDate: string, time: string): Date {
   const H = Number(hh)
   const M = Number(mm)
   const S = Number(ss)
-
   return new Date(y, mZeroBased, d, H, M, S)
 }

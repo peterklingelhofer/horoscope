@@ -1,4 +1,7 @@
 // src/components/BirthForm.tsx
+// Simple birth inputs without geolocation button
+// Never end code comments with periods
+
 import { type Dispatch, type SetStateAction } from "react"
 
 type FormValue = {
@@ -11,10 +14,9 @@ type FormValue = {
 type Props = {
   value: FormValue
   onChange: Dispatch<SetStateAction<FormValue>>
-  onUseGeolocation: (coords: { latitude: number; longitude: number }) => void
 }
 
-export function BirthForm({ value, onChange, onUseGeolocation }: Props) {
+export function BirthForm({ value, onChange }: Props) {
   return (
     <form
       onSubmit={(e) => e.preventDefault()}
@@ -45,7 +47,7 @@ export function BirthForm({ value, onChange, onUseGeolocation }: Props) {
           onChange={(e) =>
             onChange((prev) => ({ ...prev, time: e.target.value }))
           }
-          step={60}
+          step={1} // accept HH:mm or HH:mm:ss
           required
         />
       </label>
@@ -77,27 +79,6 @@ export function BirthForm({ value, onChange, onUseGeolocation }: Props) {
           required
         />
       </label>
-
-      <button
-        type="button"
-        onClick={() => {
-          if (!("geolocation" in navigator)) return
-          navigator.geolocation.getCurrentPosition(
-            (pos) => {
-              onUseGeolocation({
-                latitude: pos.coords.latitude,
-                longitude: pos.coords.longitude,
-              })
-            },
-            () => {
-              // no-op for denied geolocation
-            },
-            { enableHighAccuracy: true, maximumAge: 10_000, timeout: 10_000 }
-          )
-        }}
-      >
-        Use my location
-      </button>
     </form>
   )
 }
