@@ -1,5 +1,8 @@
 // src/components/BirthChart.tsx
 // Rotate labels only based on toggle and date/time derived Sun position, never lat/lon
+// Line labels are rendered outside the wheel using symbols 𖤓 ☾ ↑
+// Lines end exactly at the circumference; only text sits outside
+// Only the symbol + word at the start of each legend line are colored
 // Never end code comments with periods
 
 import type { SignMode } from "../App"
@@ -54,6 +57,11 @@ const STAR_ALIGNED_LABELS: readonly string[] = [
   "Pisces",
 ]
 
+// line colors used both on the wheel and in legend headers
+const COLOR_SUN = "#f0c419"
+const COLOR_MOON = "#e6e6e6"
+const COLOR_ASC = "#8be9fd"
+
 function isFiniteNumber(v: unknown): v is number {
   return typeof v === "number" && Number.isFinite(v)
 }
@@ -65,11 +73,15 @@ function rotate<T>(arr: readonly T[], offset: number): T[] {
   return [...arr.slice(k), ...arr.slice(0, k)]
 }
 
-function toPoint(cx: number, cy: number, r: number, eclipticLongitude: number) {
-  const angle = 360 - eclipticLongitude
-  const x = cx + r * Math.cos((angle * Math.PI) / 180)
-  const y = cy + r * Math.sin((angle * Math.PI) / 180)
-  return { x, y }
+function toPoint(centerX: number, centerY: number, radius: number, eclipticLongitude: number) {
+  // SVG 0° is along +x, we want ecliptic 0° at +x and increase clockwise, so use 360 - elon
+  const angleDegrees = 360 - eclipticLongitude
+  const angleRadians = (angleDegrees * Math.PI) / 180
+  const unitX = Math.cos(angleRadians)
+  const unitY = Math.sin(angleRadians)
+  const x = centerX + radius * unitX
+  const y = centerY + radius * unitY
+  return { x, y, unitX, unitY }
 }
 
 export function BirthChart({
@@ -87,6 +99,7 @@ export function BirthChart({
   const size = 460
   const radius = 190
   const center = size / 2
+  const labelOffset = 18 // distance for line labels outside the circumference
 
   const sunPoint = isFiniteNumber(eclipticLongitudeSun)
     ? toPoint(center, center, radius, eclipticLongitudeSun as number)
@@ -117,7 +130,8 @@ export function BirthChart({
     typeof sunStarAlignedNameForRotation === "string" &&
     sunStarAlignedNameForRotation.length > 0
   ) {
-    const starSunSlice = Math.floor((sunEclipticLongitudeForRotation as number) / starStep) % starSlices
+    const starSunSlice =
+      Math.floor((sunEclipticLongitudeForRotation as number) / starStep) % starSlices
     const starTarget = starLabels.findIndex(
       (s) => s.toLowerCase() === sunStarAlignedNameForRotation.toLowerCase()
     )
@@ -125,8 +139,8 @@ export function BirthChart({
     rotatedStarLabels = rotate(starLabels, starOffset)
 
     if (signMode === "starAligned") {
-      // keep drawLabels in sync when star-aligned is selected so the visible ring matches
-      const drawSunSlice = Math.floor((sunEclipticLongitudeForRotation as number) / drawStep) % drawSlices
+      const drawSunSlice =
+        Math.floor((sunEclipticLongitudeForRotation as number) / drawStep) % drawSlices
       const drawTarget = drawLabels.findIndex(
         (s) => s.toLowerCase() === sunStarAlignedNameForRotation.toLowerCase()
       )
@@ -144,6 +158,35 @@ export function BirthChart({
   const starAlignedSunName = nameViaStarRing(eclipticLongitudeSun)
   const starAlignedMoonName = nameViaStarRing(eclipticLongitudeMoon)
   const starAlignedAscName = nameViaStarRing(eclipticLongitudeAscendant)
+
+  // helper to place a label outside along the same ray without extending the line
+  const renderOuterLabel = (
+    point: { x: number; y: number; unitX: number; unitY: number } | null,
+    symbol: string,
+    fill: string
+  ) => {
+    if (!point) return null
+    const lx = center + (radius + labelOffset) * point.unitX
+    const ly = center + (radius + labelOffset) * point.unitY
+    const textAnchor = point.unitX >= 0.15 ? "start" : point.unitX <= -0.15 ? "end" : "middle"
+    const dy = point.unitY > 0.15 ? 10 : point.unitY < -0.15 ? -10 : 0
+    const dx = textAnchor === "start" ? 6 : textAnchor === "end" ? -6 : 0
+    return (
+      <text
+        x={lx}
+        y={ly}
+        dx={dx}
+        dy={dy}
+        fontSize={13}
+        textAnchor={textAnchor}
+        dominantBaseline="middle"
+        fill={fill}
+        style={{ fontWeight: 700 }}
+      >
+        {symbol}
+      </text>
+    )
+  }
 
   return (
     <figure
@@ -187,52 +230,62 @@ export function BirthChart({
           )
         })}
 
+        {/* Sun line and marker, with label outside */}
         {sunPoint && (
           <>
-            <line x1={center} y1={center} x2={sunPoint.x} y2={sunPoint.y} stroke="#f0c419" strokeWidth={2} />
-            <circle cx={sunPoint.x} cy={sunPoint.y} r={6} fill="#f0c419" />
-            <text x={sunPoint.x} y={sunPoint.y} dx={8} dy={-8} fontSize={12} textAnchor="start" dominantBaseline="central" fill="#f0c419">
-              Sun
-            </text>
+            <line x1={center} y1={center} x2={sunPoint.x} y2={sunPoint.y} stroke={COLOR_SUN} strokeWidth={2} />
+            <circle cx={sunPoint.x} cy={sunPoint.y} r={6} fill={COLOR_SUN} />
+            {renderOuterLabel(sunPoint, "𖤓", COLOR_SUN)}
           </>
         )}
 
+        {/* Moon line and marker, with label outside */}
         {moonPoint && (
           <>
-            <line x1={center} y1={center} x2={moonPoint.x} y2={moonPoint.y} stroke="#e6e6e6" strokeWidth={2} />
-            <circle cx={moonPoint.x} cy={moonPoint.y} r={6} fill="#e6e6e6" />
-            <text x={moonPoint.x} y={moonPoint.y} dx={8} dy={-8} fontSize={12} textAnchor="start" dominantBaseline="central" fill="#e6e6e6">
-              Moon
-            </text>
+            <line x1={center} y1={center} x2={moonPoint.x} y2={moonPoint.y} stroke={COLOR_MOON} strokeWidth={2} />
+            <circle cx={moonPoint.x} cy={moonPoint.y} r={6} fill={COLOR_MOON} />
+            {renderOuterLabel(moonPoint, "☾", COLOR_MOON)}
           </>
         )}
 
+        {/* Ascendant line and marker, with label outside */}
         {ascPoint && (
           <>
-            <line x1={center} y1={center} x2={ascPoint.x} y2={ascPoint.y} stroke="#8be9fd" strokeWidth={2} />
-            <circle cx={ascPoint.x} cy={ascPoint.y} r={6} fill="#8be9fd" />
-            <text x={ascPoint.x} y={ascPoint.y} dx={8} dy={-8} fontSize={12} textAnchor="start" dominantBaseline="central" fill="#8be9fd">
-              Ascendant
-            </text>
+            <line x1={center} y1={center} x2={ascPoint.x} y2={ascPoint.y} stroke={COLOR_ASC} strokeWidth={2} />
+            <circle cx={ascPoint.x} cy={ascPoint.y} r={6} fill={COLOR_ASC} />
+            {renderOuterLabel(ascPoint, "↑", COLOR_ASC)}
           </>
         )}
       </svg>
 
+      {/* legend with only the left header colored per line */}
       <div style={{ display: "grid", gap: 4, fontSize: 13, opacity: 0.95 }}>
         <div>
-          <span aria-hidden="true">☉ </span>
-          Sun • Star-aligned: <strong>{starAlignedSunName || "N/A"}</strong> • Tropical:{" "}
+          <span style={{ color: COLOR_SUN }}>
+            <span aria-hidden="true">𖤓 </span>Sun
+          </span>
+          {" • Star-aligned: "}
+          <strong>{starAlignedSunName || "N/A"}</strong>
+          {" • Tropical: "}
           <strong>{sunTropicalName ?? "N/A"}</strong>
           {isComputing ? " • recalculating…" : ""}
         </div>
         <div>
-          <span aria-hidden="true">☾ </span>
-          Moon • Star-aligned: <strong>{starAlignedMoonName || "N/A"}</strong> • Tropical:{" "}
+          <span style={{ color: COLOR_MOON }}>
+            <span aria-hidden="true">☾ </span>Moon
+          </span>
+          {" • Star-aligned: "}
+          <strong>{starAlignedMoonName || "N/A"}</strong>
+          {" • Tropical: "}
           <strong>{moonTropicalName ?? "N/A"}</strong>
         </div>
         <div>
-          <span aria-hidden="true">↑ </span>
-          Ascendant • Star-aligned: <strong>{starAlignedAscName || "N/A"}</strong> • Tropical:{" "}
+          <span style={{ color: COLOR_ASC }}>
+            <span aria-hidden="true">↑ </span>Ascendant
+          </span>
+          {" • Star-aligned: "}
+          <strong>{starAlignedAscName || "N/A"}</strong>
+          {" • Tropical: "}
           <strong>{ascendantTropicalName ?? "N/A"}</strong>
         </div>
       </div>
