@@ -6,6 +6,7 @@
 import React, { useEffect, useMemo, useState } from "react"
 import { BirthChart } from "./components/BirthChart"
 import { BirthForm } from "./components/BirthForm"
+import { LocationSearch } from "./components/LocationSearch"
 import { computeChartSnapshot, type ChartSnapshot } from "./astro"
 import "./App.css"
 
@@ -34,14 +35,12 @@ function App() {
     }
   })
 
-  // default to star-aligned
+  const [pickedLabel, setPickedLabel] = useState<string>("")
   const [signMode, setSignMode] = useState<SignMode>("starAligned")
-
   const [snapshot, setSnapshot] = useState<ChartSnapshot | null>(null)
   const [errorText, setErrorText] = useState<string | null>(null)
   const [isComputing, setIsComputing] = useState(false)
 
-  // require non-empty latitude/longitude strings before parsing so Number("") never becomes 0
   const canCompute = useMemo(() => {
     if (formState.isoDate.length !== 10 || formState.time.length < 4) return false
     if (formState.latitude.trim() === "" || formState.longitude.trim() === "") return false
@@ -61,26 +60,13 @@ function App() {
     setErrorText(null)
     try {
       const birthDateTime = parseLocalDateTime(formState.isoDate, formState.time)
-      if (Number.isNaN(birthDateTime.getTime())) {
-        throw new Error("Please enter a valid date and time")
-      }
-
       const latitude = Number(formState.latitude)
       const longitude = Number(formState.longitude)
-
-      const chart = computeChartSnapshot({
-        birthDateTime,
-        latitude,
-        longitude,
-      })
+      const chart = computeChartSnapshot({ birthDateTime, latitude, longitude })
       setSnapshot(chart)
     } catch (err) {
       const message =
-        err instanceof Error
-          ? err.message
-          : typeof err === "string"
-          ? err
-          : "Unexpected error"
+        err instanceof Error ? err.message : typeof err === "string" ? err : "Unexpected error"
       setErrorText(message)
       setSnapshot(null)
     } finally {
@@ -88,7 +74,6 @@ function App() {
     }
   }, [canCompute, formState])
 
-  // always render the chart container; feed undefineds until snapshot is ready
   const sunElon = snapshot?.sun.tropical.eclipticLongitude
   const moonElon = snapshot?.moon.tropical.eclipticLongitude
   const ascElon = snapshot?.ascendant.eclipticLongitude
@@ -97,37 +82,67 @@ function App() {
   const moonTropicalName = snapshot?.moon.tropical.sign
   const ascTropicalName = snapshot?.ascendant.sign
 
-  // rotation inputs must depend only on date/time, not location, but our sun elon is geocentric so safe
   const sunElonForRotation = sunElon
   const sunStarAlignedNameForRotation = snapshot?.sun?.starAlignedAnchor?.name
 
-  return (
-    <main style={{ display: "grid", gap: 24 }}>
-      <h1 style={{ margin: 0 }}>Your birth chart, minimally and accurately</h1>
-      <p style={{ marginTop: -12 }}>
-        Enter birth date, exact time, and location to see Sun, Moon, and Ascendant for star-aligned and tropical interpretations
-      </p>
 
-      <ModeControls signMode={signMode} setSignMode={setSignMode} />
+return (
+  <main style={{ display: "grid", gap: 16 }}>
+    <h1 style={{ margin: 0 }}>Your birth chart, minimally and accurately</h1>
+    <p style={{ marginTop: -12 }}>
+      Enter birth date, exact time, and location to see Sun, Moon, and Ascendant for star-aligned and tropical interpretations
+    </p>
 
-      <BirthForm value={formState} onChange={setFormState} />
+    {/* top grid uses same 4-column template as the form for perfect alignment */}
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(4, minmax(200px, 1fr))",
+        gap: 12,
+        alignItems: "center",
+      }}
+    >
+      {/* Mode controls span columns 1-2 */}
+      <div style={{ gridColumn: "1 / span 2" }}>
+        <ModeControls signMode={signMode} setSignMode={setSignMode} />
+      </div>
 
-      {errorText && <div style={{ color: "#ff6b6b" }}>{errorText}</div>}
+      {/* LocationSearch spans columns 3-4 so it aligns with latitude/longitude below */}
+      <div style={{ gridColumn: "3 / span 2", justifySelf: "stretch" }}>
+        <LocationSearch
+          helperText={pickedLabel ? `Picked: ${pickedLabel}` : ""}
+          onPick={(lat, lon, label) => {
+            setPickedLabel(label)
+            setFormState((prev) => ({
+              ...prev,
+              latitude: lat.toFixed(4),
+              longitude: lon.toFixed(4),
+            }))
+          }}
+        />
+      </div>
+    </div>
 
-      <BirthChart
-        eclipticLongitudeSun={sunElon}
-        eclipticLongitudeMoon={moonElon}
-        eclipticLongitudeAscendant={ascElon}
-        sunEclipticLongitudeForRotation={sunElonForRotation}
-        sunStarAlignedNameForRotation={sunStarAlignedNameForRotation}
-        sunTropicalName={sunTropicalName}
-        moonTropicalName={moonTropicalName}
-        ascendantTropicalName={ascTropicalName}
-        signMode={signMode}
-        isComputing={isComputing}
-      />
-    </main>
-  )
+    {/* form uses the same 4-col grid for exact vertical alignment */}
+    <BirthForm value={formState} onChange={setFormState} />
+
+    {errorText && <div style={{ color: "#ff6b6b" }}>{errorText}</div>}
+
+    <BirthChart
+      eclipticLongitudeSun={sunElon}
+      eclipticLongitudeMoon={moonElon}
+      eclipticLongitudeAscendant={ascElon}
+      sunEclipticLongitudeForRotation={sunElonForRotation}
+      sunStarAlignedNameForRotation={sunStarAlignedNameForRotation}
+      sunTropicalName={sunTropicalName}
+      moonTropicalName={moonTropicalName}
+      ascendantTropicalName={ascTropicalName}
+      signMode={signMode}
+      isComputing={isComputing}
+    />
+  </main>
+)
+
 }
 
 export default App
@@ -154,12 +169,11 @@ function parseLocalDateTime(isoDate: string, time: string): Date {
   return new Date(y, mZeroBased, d, H, M, S)
 }
 
-// persistent tooltip that stays open while moving to the NYT link
+// same InfoTooltip and ModeControls as before
 function InfoTooltip({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = React.useState(false)
   const closeTimerRef = React.useRef<number | null>(null)
   const tooltipId = "info-tooltip"
-
   const openNow = () => {
     if (closeTimerRef.current) {
       window.clearTimeout(closeTimerRef.current)
@@ -167,7 +181,6 @@ function InfoTooltip({ children }: { children: React.ReactNode }) {
     }
     setOpen(true)
   }
-
   const scheduleClose = (delayMs: number = 160) => {
     if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current)
     closeTimerRef.current = window.setTimeout(() => {
@@ -175,14 +188,12 @@ function InfoTooltip({ children }: { children: React.ReactNode }) {
       closeTimerRef.current = null
     }, delayMs)
   }
-
   const cancelClose = () => {
     if (closeTimerRef.current) {
       window.clearTimeout(closeTimerRef.current)
       closeTimerRef.current = null
     }
   }
-
   return (
     <span
       style={{ position: "relative", display: "inline-flex", alignItems: "center" }}
@@ -225,7 +236,6 @@ function InfoTooltip({ children }: { children: React.ReactNode }) {
           <rect x="11.1" y="10" width="1.8" height="8" fill="#aaa" rx="0.9" />
         </svg>
       </button>
-
       {open && (
         <div
           id={tooltipId}
@@ -258,7 +268,6 @@ function InfoTooltip({ children }: { children: React.ReactNode }) {
   )
 }
 
-// radios plus tooltip
 function ModeControls({
   signMode,
   setSignMode,
@@ -278,7 +287,6 @@ function ModeControls({
         />
         <span style={{ marginLeft: 6 }}>Star-aligned</span>
       </label>
-
       <label>
         <input
           type="radio"
@@ -289,7 +297,6 @@ function ModeControls({
         />
         <span style={{ marginLeft: 6 }}>Tropical</span>
       </label>
-
       <InfoTooltip>
         <div style={{ maxWidth: 360, lineHeight: 1.35 }}>
           <strong>Star-aligned</strong> uses the constellation behind the Sun at 12:00 UTC in the current year on your month and day, which can include Ophiuchus

@@ -1,6 +1,5 @@
 // src/components/BirthForm.tsx
-// Native steppers via input types date/time/number with proper stepping and min/max
-// Grid tuned so 4 inputs fit on one row on normal laptop widths
+// Date, time, and native number inputs for latitude/longitude
 // Never end code comments with periods
 
 import { type Dispatch, type SetStateAction } from "react"
@@ -18,28 +17,19 @@ type Props = {
 }
 
 export function BirthForm({ value, onChange }: Props) {
-  const fieldStyle: React.CSSProperties = {
-    display: "grid",
-    gap: 6,
-  }
-
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    boxSizing: "border-box",
-  }
+  const fieldStyle: React.CSSProperties = { display: "grid", gap: 6 }
+  const inputStyle: React.CSSProperties = { width: "100%", boxSizing: "border-box" }
 
   return (
     <form
       onSubmit={(e) => e.preventDefault()}
       style={{
         display: "grid",
-        // 4 columns when space allows, gracefully wraps on smaller screens
         gridTemplateColumns: "repeat(4, minmax(200px, 1fr))",
         gap: 12,
         alignItems: "end",
       }}
     >
-      {/* Date */}
       <label style={fieldStyle}>
         <span>Date of birth</span>
         <input
@@ -51,20 +41,18 @@ export function BirthForm({ value, onChange }: Props) {
         />
       </label>
 
-      {/* Time */}
       <label style={fieldStyle}>
         <span>Time of birth</span>
         <input
           type="time"
           value={value.time}
           onChange={(e) => onChange((prev) => ({ ...prev, time: e.target.value }))}
-          step={60} // 1 minute step so native spinner press-and-hold is useful
+          step={60}
           required
           style={inputStyle}
         />
       </label>
 
-      {/* Latitude */}
       <label style={fieldStyle}>
         <span>Latitude</span>
         <input
@@ -81,7 +69,6 @@ export function BirthForm({ value, onChange }: Props) {
         />
       </label>
 
-      {/* Longitude */}
       <label style={fieldStyle}>
         <span>Longitude</span>
         <input
