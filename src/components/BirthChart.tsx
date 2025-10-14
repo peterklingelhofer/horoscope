@@ -1,6 +1,6 @@
 // src/components/BirthChart.tsx
 // Rotate labels only based on toggle and date/time derived Sun position, never lat/lon
-// Line labels are rendered outside the wheel using symbols 𖤓 ☾ ↑
+// Line labels are rendered outside the wheel using symbols ☼ ☾ ↑
 // Lines end exactly at the circumference; only text sits outside
 // Only the symbol + word at the start of each legend line are colored
 // Never end code comments with periods
@@ -84,6 +84,33 @@ function toPoint(centerX: number, centerY: number, radius: number, eclipticLongi
   return { x, y, unitX, unitY }
 }
 
+// place the symbol exactly on the ray, centered on the glyph
+function renderOuterLabel(
+  center: number,
+  radius: number,
+  labelOffset: number,
+  point: { x: number; y: number; unitX: number; unitY: number } | null,
+  symbol: string,
+  fill: string
+) {
+  if (!point) return null
+  const lx = center + (radius + labelOffset) * point.unitX
+  const ly = center + (radius + labelOffset) * point.unitY
+  return (
+    <text
+      x={lx}
+      y={ly}
+      fontSize={13}
+      textAnchor="middle"
+      dominantBaseline="middle"
+      fill={fill}
+      style={{ fontWeight: 700 }}
+    >
+      {symbol}
+    </text>
+  )
+}
+
 export function BirthChart({
   eclipticLongitudeSun,
   eclipticLongitudeMoon,
@@ -99,7 +126,7 @@ export function BirthChart({
   const size = 460
   const radius = 190
   const center = size / 2
-  const labelOffset = 18 // distance for line labels outside the circumference
+  const labelOffset = 28 // increased offset to move outer labels farther from the circle
 
   const sunPoint = isFiniteNumber(eclipticLongitudeSun)
     ? toPoint(center, center, radius, eclipticLongitudeSun as number)
@@ -159,35 +186,6 @@ export function BirthChart({
   const starAlignedMoonName = nameViaStarRing(eclipticLongitudeMoon)
   const starAlignedAscName = nameViaStarRing(eclipticLongitudeAscendant)
 
-  // helper to place a label outside along the same ray without extending the line
-  const renderOuterLabel = (
-    point: { x: number; y: number; unitX: number; unitY: number } | null,
-    symbol: string,
-    fill: string
-  ) => {
-    if (!point) return null
-    const lx = center + (radius + labelOffset) * point.unitX
-    const ly = center + (radius + labelOffset) * point.unitY
-    const textAnchor = point.unitX >= 0.15 ? "start" : point.unitX <= -0.15 ? "end" : "middle"
-    const dy = point.unitY > 0.15 ? 10 : point.unitY < -0.15 ? -10 : 0
-    const dx = textAnchor === "start" ? 6 : textAnchor === "end" ? -6 : 0
-    return (
-      <text
-        x={lx}
-        y={ly}
-        dx={dx}
-        dy={dy}
-        fontSize={13}
-        textAnchor={textAnchor}
-        dominantBaseline="middle"
-        fill={fill}
-        style={{ fontWeight: 700 }}
-      >
-        {symbol}
-      </text>
-    )
-  }
-
   return (
     <figure
       style={{
@@ -235,7 +233,7 @@ export function BirthChart({
           <>
             <line x1={center} y1={center} x2={sunPoint.x} y2={sunPoint.y} stroke={COLOR_SUN} strokeWidth={2} />
             <circle cx={sunPoint.x} cy={sunPoint.y} r={6} fill={COLOR_SUN} />
-            {renderOuterLabel(sunPoint, "𖤓", COLOR_SUN)}
+            {renderOuterLabel(center, radius, labelOffset, sunPoint, "☼", COLOR_SUN)}
           </>
         )}
 
@@ -244,7 +242,7 @@ export function BirthChart({
           <>
             <line x1={center} y1={center} x2={moonPoint.x} y2={moonPoint.y} stroke={COLOR_MOON} strokeWidth={2} />
             <circle cx={moonPoint.x} cy={moonPoint.y} r={6} fill={COLOR_MOON} />
-            {renderOuterLabel(moonPoint, "☾", COLOR_MOON)}
+            {renderOuterLabel(center, radius, labelOffset, moonPoint, "☾", COLOR_MOON)}
           </>
         )}
 
@@ -253,7 +251,7 @@ export function BirthChart({
           <>
             <line x1={center} y1={center} x2={ascPoint.x} y2={ascPoint.y} stroke={COLOR_ASC} strokeWidth={2} />
             <circle cx={ascPoint.x} cy={ascPoint.y} r={6} fill={COLOR_ASC} />
-            {renderOuterLabel(ascPoint, "↑", COLOR_ASC)}
+            {renderOuterLabel(center, radius, labelOffset, ascPoint, "↑", COLOR_ASC)}
           </>
         )}
       </svg>
@@ -262,7 +260,7 @@ export function BirthChart({
       <div style={{ display: "grid", gap: 4, fontSize: 13, opacity: 0.95 }}>
         <div>
           <span style={{ color: COLOR_SUN }}>
-            <span aria-hidden="true">𖤓 </span>Sun
+            <span aria-hidden="true">☼ </span>Sun
           </span>
           {" • Star-aligned: "}
           <strong>{starAlignedSunName || "N/A"}</strong>
