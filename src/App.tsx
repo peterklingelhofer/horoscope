@@ -99,7 +99,7 @@ function App() {
 
   // rotation inputs must depend only on date/time, not location, but our sun elon is geocentric so safe
   const sunElonForRotation = sunElon
-  const sunStarAlignedNameForRotation = snapshot?.sun?.constellationNYT?.name
+  const sunStarAlignedNameForRotation = snapshot?.sun?.starAlignedAnchor?.name
 
   return (
     <main style={{ display: "grid", gap: 24 }}>
@@ -112,9 +112,7 @@ function App() {
 
       <BirthForm value={formState} onChange={setFormState} />
 
-      {errorText && (
-        <div style={{ color: "#ff6b6b" }}>{errorText}</div>
-      )}
+      {errorText && <div style={{ color: "#ff6b6b" }}>{errorText}</div>}
 
       <BirthChart
         eclipticLongitudeSun={sunElon}

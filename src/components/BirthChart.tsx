@@ -6,7 +6,7 @@
 // Only the symbol + word at the start of each legend line are colored
 // Never end code comments with periods
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { SignMode } from "../App"
 
 type Props = {
