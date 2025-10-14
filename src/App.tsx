@@ -1,4 +1,7 @@
 // src/App.tsx
+// DRY cleanup: no NYT names, only starAligned/tropical; lat/lon start as null to avoid Number("") → 0
+// Always render chart; hide body lines until inputs are valid; legend shows N/A until ready
+// Never end code comments with periods
 
 import React, { useEffect, useMemo, useState } from "react"
 import { BirthChart } from "./components/BirthChart"
@@ -8,12 +11,12 @@ import "./App.css"
 
 type FormState = {
   isoDate: string
-  time: stringb
+  time: string
   latitude: string | null
   longitude: string | null
 }
 
-export type SignMode = "nytimes" | "tropical"
+export type SignMode = "starAligned" | "tropical"
 
 function App() {
   const [formState, setFormState] = useState<FormState>(() => {
@@ -26,12 +29,12 @@ function App() {
     return {
       isoDate: `${yyyy}-${mm}-${dd}`,
       time: `${hh}:${mi}`,
-      latitude: null,   // start as null so Number("") is never used
-      longitude: null,  // start as null so Number("") is never used
+      latitude: null,
+      longitude: null,
     }
   })
 
-  const [signMode, setSignMode] = useState<SignMode>("nytimes")
+  const [signMode, setSignMode] = useState<SignMode>("starAligned")
   const [snapshot, setSnapshot] = useState<ChartSnapshot | null>(null)
   const [errorText, setErrorText] = useState<string | null>(null)
   const [isComputing, setIsComputing] = useState(false)
@@ -39,10 +42,10 @@ function App() {
   const inputsValid = useMemo(() => {
     if (!(formState.isoDate.length === 10 && formState.time.length >= 4)) return false
     if (formState.latitude === null || formState.longitude === null) return false
-    const lat = Number(formState.latitude)
-    const lon = Number(formState.longitude)
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false
-    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return false
+    const latitude = Number(formState.latitude)
+    const longitude = Number(formState.longitude)
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return false
+    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return false
     return true
   }, [formState])
 
@@ -84,9 +87,9 @@ function App() {
           <input
             type="radio"
             name="signMode"
-            value="nytimes"
-            checked={signMode === "nytimes"}
-            onChange={() => setSignMode("nytimes")}
+            value="starAligned"
+            checked={signMode === "starAligned"}
+            onChange={() => setSignMode("starAligned")}
           />
           <span style={{ marginLeft: 6 }}>Star-aligned</span>
         </label>
@@ -114,7 +117,7 @@ function App() {
               target="_blank"
               rel="noreferrer"
             >
-              this New York Times explainer
+              this explainer
             </a>
           </div>
         </InfoTooltip>
@@ -124,18 +127,18 @@ function App() {
 
       {errorText && <div style={{ color: "#ff6b6b" }}>{errorText}</div>}
 
-      {/* Always render the chart for stable layout */}
+      {/* chart is always rendered for stable layout */}
       <BirthChart
         eclipticLongitudeSun={snapshot?.sun.tropical.eclipticLongitude}
         eclipticLongitudeMoon={snapshot?.moon.tropical.eclipticLongitude}
         eclipticLongitudeAscendant={snapshot?.ascendant.eclipticLongitude}
-        sunConstellationName={snapshot?.sun.constellationNYT.name}
-        moonConstellationName={snapshot?.moon.constellation.name}
-        ascendantConstellationName={snapshot?.ascendant.constellation.name}
+        // star-aligned anchor for naming the ring
+        sunConstellationName={snapshot?.sun.starAlignedAnchor.name}
+        // tropical names for legend
         sunTropicalName={snapshot?.sun.tropical.sign}
         moonTropicalName={snapshot?.moon.tropical.sign}
         ascendantTropicalName={snapshot?.ascendant.sign}
-        sunConstellationWhenUTC={snapshot?.sun.constellationNYT.when}
+        // toggle selection for rotating draw ring only
         signMode={signMode}
         isComputing={isComputing}
       />
@@ -148,26 +151,26 @@ export default App
 function parseLocalDateTime(isoDate: string, time: string): Date {
   const cleanTime = time.trim()
   const parts = cleanTime.split(":")
-  let hh = "00"
-  let mm = "00"
-  let ss = "00"
+  let hour = "00"
+  let minute = "00"
+  let second = "00"
   if (parts.length >= 2) {
-    ;[hh, mm] = parts
+    ;[hour, minute] = parts
   }
   if (parts.length >= 3) {
-    ;[, , ss] = parts
+    ;[, , second] = parts
   }
-  const [yStr, mStr, dStr] = isoDate.split("-")
-  const y = Number(yStr)
-  const mZeroBased = Number(mStr) - 1
-  const d = Number(dStr)
-  const H = Number(hh)
-  const M = Number(mm)
-  const S = Number(ss)
-  return new Date(y, mZeroBased, d, H, M, S)
+  const [yearText, monthText, dayText] = isoDate.split("-")
+  const year = Number(yearText)
+  const monthZeroBased = Number(monthText) - 1
+  const day = Number(dayText)
+  const hourNumber = Number(hour)
+  const minuteNumber = Number(minute)
+  const secondNumber = Number(second)
+  return new Date(year, monthZeroBased, day, hourNumber, minuteNumber, secondNumber)
 }
 
-// unchanged tooltip
+// tooltip with hover gap fix
 function InfoTooltip({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
   const closeTimerRef = React.useRef<number | null>(null)

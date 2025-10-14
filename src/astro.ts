@@ -1,8 +1,7 @@
 // src/astro.ts
-// Compute Sun and Moon tropical longitudes, IAU constellations, and the Ascendant
-// Star-aligned basis uses IAU constellations in J2000 astrometric frame
-// Sun.constellationNYT is at 12:00 UTC in the current year on the same month/day
-// Ascendant constellation is taken at the Ascendant ecliptic longitude projected to J2000 RA/Dec
+// Computes Sun and Moon tropical longitudes, IAU constellation anchors, and the Ascendant
+// Star-aligned Sun anchor: constellation at 12:00 UTC, current year, same month/day as birth date
+// Star-aligned Moon and Ascendant names are derived visually by the ring in the UI, not by IAU boundaries
 // Never end code comments with periods
 
 import * as Astronomy from "astronomy-engine"
@@ -14,19 +13,19 @@ export type SunSnapshot = {
     sign: string
     signIndex: number
   }
-  // constellation at exact birth datetime
-  constellation: {
+  // constellation at exact birth datetime in J2000 astrometric frame
+  constellationAtBirth: {
     name: string
     abbreviation: string
-    ra: number
-    dec: number
+    rightAscensionHours: number
+    declinationDegrees: number
   }
-  // NYT basis: constellation at 12:00 UTC in the current year for same month/day
-  constellationNYT: {
+  // star-aligned anchor used by the UI to align the label ring for the Sun
+  starAlignedAnchor: {
     name: string
     abbreviation: string
-    ra: number
-    dec: number
+    rightAscensionHours: number
+    declinationDegrees: number
     when: Date
   }
 }
@@ -37,7 +36,8 @@ export type MoonSnapshot = {
     sign: string
     signIndex: number
   }
-  constellation: {
+  // constellation at birth, not used for star-aligned text in the UI
+  constellationAtBirth: {
     name: string
     abbreviation: string
   }
@@ -47,11 +47,12 @@ export type AscendantSnapshot = {
   eclipticLongitude: number
   sign: string
   signIndex: number
-  constellation: {
+  // constellation name near the ascendant point projected to J2000 equatorial
+  constellationProjected: {
     name: string
     abbreviation: string
-    raHours: number
-    decDeg: number
+    rightAscensionHours: number
+    declinationDegrees: number
   }
 }
 
@@ -67,7 +68,7 @@ const InputSchema = z.object({
   longitude: z.number().min(-180).max(180),
 })
 
-const SIGN_LABELS: readonly string[] = [
+const TROPICAL_SIGN_LABELS: readonly string[] = [
   "Aries",
   "Taurus",
   "Gemini",
@@ -82,8 +83,8 @@ const SIGN_LABELS: readonly string[] = [
   "Pisces",
 ]
 
-// zero-parallax observer to mimic geocenter in this API
-const GEOCENTER = new Astronomy.Observer(0, 0, 0)
+// observer at geocenter
+const geocenterObserver = new Astronomy.Observer(0, 0, 0)
 
 export function computeSunSnapshot(args: {
   birthDateTime: Date
@@ -93,56 +94,56 @@ export function computeSunSnapshot(args: {
   const { birthDateTime } = InputSchema.parse(args)
   const time = new Astronomy.AstroTime(birthDateTime)
 
-  // Sun tropical ecliptic longitude of date
+  // tropical ecliptic longitude
   const sunGeo = Astronomy.GeoVector(Astronomy.Body.Sun, time, true)
-  const sunEcl = Astronomy.Ecliptic(sunGeo)
-  const sunElon = normalizeDegrees(sunEcl.elon)
-  const sunSignIndex = Math.floor(sunElon / 30) % 12
-  const sunSign = SIGN_LABELS[sunSignIndex]
+  const sunEcliptic = Astronomy.Ecliptic(sunGeo)
+  const sunEclipticLongitude = normalizeDegrees(sunEcliptic.elon)
+  const sunSignIndex = Math.floor(sunEclipticLongitude / 30) % 12
+  const sunSign = TROPICAL_SIGN_LABELS[sunSignIndex]
 
-  // Constellation at birth datetime in J2000 astrometric
-  const equJ2000 = Astronomy.Equator(
+  // constellation at birth in J2000 astrometric
+  const equatorJ2000 = Astronomy.Equator(
     Astronomy.Body.Sun,
     time,
-    GEOCENTER,
+    geocenterObserver,
     false, // J2000
     false  // astrometric
   )
-  const c = Astronomy.Constellation(equJ2000.ra, equJ2000.dec)
+  const constellationBirth = Astronomy.Constellation(equatorJ2000.ra, equatorJ2000.dec)
 
-  // NYT method: same month/day, current year, 12:00 UTC
-  const month = birthDateTime.getMonth() // 0-based
-  const day = birthDateTime.getDate()
-  const now = new Date()
-  const nytWhen = new Date(Date.UTC(now.getFullYear(), month, day, 12, 0, 0))
-  const timeNYT = new Astronomy.AstroTime(nytWhen)
-  const equJ2000NYT = Astronomy.Equator(
+  // star-aligned anchor for Sun: same month/day, current year, 12:00 UTC
+  const monthZeroBased = birthDateTime.getMonth()
+  const dayOfMonth = birthDateTime.getDate()
+  const currentYear = new Date().getFullYear()
+  const when = new Date(Date.UTC(currentYear, monthZeroBased, dayOfMonth, 12, 0, 0))
+  const timeAnchor = new Astronomy.AstroTime(when)
+  const equatorAnchor = Astronomy.Equator(
     Astronomy.Body.Sun,
-    timeNYT,
-    GEOCENTER,
+    timeAnchor,
+    geocenterObserver,
     false,
     false
   )
-  const cNYT = Astronomy.Constellation(equJ2000NYT.ra, equJ2000NYT.dec)
+  const constellationAnchor = Astronomy.Constellation(equatorAnchor.ra, equatorAnchor.dec)
 
   return {
     tropical: {
-      eclipticLongitude: sunElon,
+      eclipticLongitude: sunEclipticLongitude,
       sign: sunSign,
       signIndex: sunSignIndex,
     },
-    constellation: {
-      name: c.name,
-      abbreviation: c.symbol,
-      ra: equJ2000.ra,
-      dec: equJ2000.dec,
+    constellationAtBirth: {
+      name: constellationBirth.name,
+      abbreviation: constellationBirth.symbol,
+      rightAscensionHours: equatorJ2000.ra,
+      declinationDegrees: equatorJ2000.dec,
     },
-    constellationNYT: {
-      name: cNYT.name,
-      abbreviation: cNYT.symbol,
-      ra: equJ2000NYT.ra,
-      dec: equJ2000NYT.dec,
-      when: nytWhen,
+    starAlignedAnchor: {
+      name: constellationAnchor.name,
+      abbreviation: constellationAnchor.symbol,
+      rightAscensionHours: equatorAnchor.ra,
+      declinationDegrees: equatorAnchor.dec,
+      when,
     },
   }
 }
@@ -155,91 +156,95 @@ export function computeChartSnapshot(args: {
   const { birthDateTime, latitude, longitude } = InputSchema.parse(args)
   const time = new Astronomy.AstroTime(birthDateTime)
 
-  // Sun snapshots
+  // Sun
   const sun = computeSunSnapshot({ birthDateTime, latitude, longitude })
 
-  // Moon tropical ecliptic longitude of date
+  // Moon tropical ecliptic longitude
   const moonGeo = Astronomy.GeoVector(Astronomy.Body.Moon, time, true)
-  const moonEcl = Astronomy.Ecliptic(moonGeo)
-  const moonElon = normalizeDegrees(moonEcl.elon)
-  const moonSignIndex = Math.floor(moonElon / 30) % 12
-  const moonSign = SIGN_LABELS[moonSignIndex]
+  const moonEcliptic = Astronomy.Ecliptic(moonGeo)
+  const moonEclipticLongitude = normalizeDegrees(moonEcliptic.elon)
+  const moonSignIndex = Math.floor(moonEclipticLongitude / 30) % 12
+  const moonSign = TROPICAL_SIGN_LABELS[moonSignIndex]
 
-  // Moon constellation in J2000 astrometric
-  const moonEquJ2000 = Astronomy.Equator(
-    Astronomy.Body.Moon,
-    time,
-    GEOCENTER,
-    false,
-    false
-  )
-  const mc = Astronomy.Constellation(moonEquJ2000.ra, moonEquJ2000.dec)
+  // Moon constellation at birth
+  const moonEquatorJ2000 = Astronomy.Equator(Astronomy.Body.Moon, time, geocenterObserver, false, false)
+  const moonConstellationBirth = Astronomy.Constellation(moonEquatorJ2000.ra, moonEquatorJ2000.dec)
 
   const moon: MoonSnapshot = {
     tropical: {
-      eclipticLongitude: moonElon,
+      eclipticLongitude: moonEclipticLongitude,
       sign: moonSign,
       signIndex: moonSignIndex,
     },
-    constellation: {
-      name: mc.name,
-      abbreviation: mc.symbol,
+    constellationAtBirth: {
+      name: moonConstellationBirth.name,
+      abbreviation: moonConstellationBirth.symbol,
     },
   }
 
-  // Ascendant via local sidereal time, latitude, obliquity
-  const gastHours = Astronomy.SiderealTime(time)
-  const lstHours = gastHours + longitude / 15
-  const thetaDeg = normalizeDegrees(lstHours * 15)
-  const theta = deg2rad(thetaDeg)
-  const phi = deg2rad(latitude)
-  const eps = deg2rad(23.4392911)
+  // Ascendant via sidereal time, latitude, obliquity
+  const greenwichSiderealTimeHours = Astronomy.SiderealTime(time)
+  const localSiderealTimeHours = greenwichSiderealTimeHours + longitude / 15
+  const localSiderealDegrees = normalizeDegrees(localSiderealTimeHours * 15)
+  const localSiderealRadians = degreesToRadians(localSiderealDegrees)
+  const latitudeRadians = degreesToRadians(latitude)
+  const obliquityRadians = degreesToRadians(23.4392911)
 
-  const y = -Math.cos(theta)
-  const x = Math.sin(theta) * Math.cos(eps) + Math.tan(phi) * Math.sin(eps)
-  let lambdaAsc = rad2deg(Math.atan2(y, x))
-  lambdaAsc = normalizeDegrees(lambdaAsc)
-  lambdaAsc = lambdaAsc < 180 ? lambdaAsc + 180 : lambdaAsc - 180
+  const y = -Math.cos(localSiderealRadians)
+  const x =
+    Math.sin(localSiderealRadians) * Math.cos(obliquityRadians) +
+    Math.tan(latitudeRadians) * Math.sin(obliquityRadians)
 
-  const ascSignIndex = Math.floor(lambdaAsc / 30) % 12
-  const ascSign = SIGN_LABELS[ascSignIndex]
+  let ascendantLongitude = radiansToDegrees(Math.atan2(y, x))
+  ascendantLongitude = normalizeDegrees(ascendantLongitude)
+  ascendantLongitude = ascendantLongitude < 180 ? ascendantLongitude + 180 : ascendantLongitude - 180
 
-  // Ascendant constellation: project the ecliptic point (beta=0) at lambdaAsc to J2000 RA/Dec
-  const ascEq = eclipticLongitudeToEquatorialJ2000(lambdaAsc, 23.4392911)
-  const ac = Astronomy.Constellation(ascEq.raHours, ascEq.decDeg)
+  const ascendantSignIndex = Math.floor(ascendantLongitude / 30) % 12
+  const ascendantSign = TROPICAL_SIGN_LABELS[ascendantSignIndex]
+
+  // project the ascendant ecliptic point (latitude 0) to equatorial J2000 and tag constellation
+  const ascendantEquatorial = eclipticLongitudeToEquatorialJ2000(ascendantLongitude, 23.4392911)
+  const ascendantConstellation = Astronomy.Constellation(
+    ascendantEquatorial.rightAscensionHours,
+    ascendantEquatorial.declinationDegrees
+  )
 
   const ascendant: AscendantSnapshot = {
-    eclipticLongitude: lambdaAsc,
-    sign: ascSign,
-    signIndex: ascSignIndex,
-    constellation: {
-      name: ac.name,
-      abbreviation: ac.symbol,
-      raHours: ascEq.raHours,
-      decDeg: ascEq.decDeg,
+    eclipticLongitude: ascendantLongitude,
+    sign: ascendantSign,
+    signIndex: ascendantSignIndex,
+    constellationProjected: {
+      name: ascendantConstellation.name,
+      abbreviation: ascendantConstellation.symbol,
+      rightAscensionHours: ascendantEquatorial.rightAscensionHours,
+      declinationDegrees: ascendantEquatorial.declinationDegrees,
     },
   }
 
   return { sun, moon, ascendant }
 }
 
-function eclipticLongitudeToEquatorialJ2000(lambdaDeg: number, obliquityDeg: number) {
-  // for ecliptic latitude beta=0
-  const λ = deg2rad(lambdaDeg)
-  const ε = deg2rad(obliquityDeg)
-  const sinλ = Math.sin(λ)
-  const cosλ = Math.cos(λ)
-  const sinε = Math.sin(ε)
-  const cosε = Math.cos(ε)
+function eclipticLongitudeToEquatorialJ2000(
+  longitudeDegrees: number,
+  obliquityDegrees: number
+) {
+  // ecliptic latitude assumed 0
+  const lambda = degreesToRadians(longitudeDegrees)
+  const epsilon = degreesToRadians(obliquityDegrees)
+  const sineLambda = Math.sin(lambda)
+  const cosineLambda = Math.cos(lambda)
+  const sineEpsilon = Math.sin(epsilon)
+  const cosineEpsilon = Math.cos(epsilon)
 
-  const y = sinλ * cosε
-  const x = cosλ
-  let alpha = Math.atan2(y, x) // radians
-  if (alpha < 0) alpha += 2 * Math.PI
-  const delta = Math.asin(sinε * sinλ)
-  const raHours = (alpha * 12) / Math.PI
-  const decDeg = rad2deg(delta)
-  return { raHours, decDeg }
+  const y = sineLambda * cosineEpsilon
+  const x = cosineLambda
+  let rightAscensionRadians = Math.atan2(y, x)
+  if (rightAscensionRadians < 0) rightAscensionRadians += 2 * Math.PI
+  const declinationRadians = Math.asin(sineEpsilon * sineLambda)
+
+  const rightAscensionHours = (rightAscensionRadians * 12) / Math.PI
+  const declinationDegrees = radiansToDegrees(declinationRadians)
+  return { rightAscensionHours, declinationDegrees }
 }
 
 function normalizeDegrees(value: number): number {
@@ -247,10 +252,10 @@ function normalizeDegrees(value: number): number {
   return m < 0 ? m + 360 : m
 }
 
-function deg2rad(d: number): number {
+function degreesToRadians(d: number): number {
   return (d * Math.PI) / 180
 }
 
-function rad2deg(r: number): number {
+function radiansToDegrees(r: number): number {
   return (r * 180) / Math.PI
 }
