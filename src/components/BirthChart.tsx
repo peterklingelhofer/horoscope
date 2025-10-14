@@ -1,6 +1,7 @@
 // src/components/BirthChart.tsx
-// Star-aligned names now come from the rotated ring mapping so text matches the circle
-// Renders exactly three lines with icons showing Star-aligned and Tropical for Sun, Moon, and Ascendant
+// Always render the wheel; hide body lines when inputs aren't valid yet
+// Legend shows N/A until values are available
+// Star-aligned names are independent of toggle and come from a dedicated rotated star-aligned ring
 // Never end code comments with periods
 
 import type { SignMode } from "../App"
@@ -10,18 +11,18 @@ type Props = {
   eclipticLongitudeMoon: number | undefined
   eclipticLongitudeAscendant: number | undefined
 
-  // star-aligned constellation names for Sun (timestamp shown); Moon/Asc names will be derived from the ring mapping
+  // star-aligned Sun name anchor and timestamp
   sunConstellationName: string | undefined
-  moonConstellationName: string | undefined
-  ascendantConstellationName: string | undefined
+  sunConstellationWhenUTC: Date | undefined
 
   // tropical names for all three
   sunTropicalName: string | undefined
   moonTropicalName: string | undefined
   ascendantTropicalName: string | undefined
 
-  // timestamp for star-aligned Sun label
-  sunConstellationWhenUTC: Date | undefined
+  // not used for text now but kept for compatibility
+  moonConstellationName?: string | undefined
+  ascendantConstellationName?: string | undefined
 
   signMode: SignMode
   isComputing: boolean
@@ -62,10 +63,6 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value)
 }
 
-function safeNumber(value: unknown, fallback: number): number {
-  return isFiniteNumber(value) ? value : fallback
-}
-
 function rotateArray<T>(arr: readonly T[], offset: number): T[] {
   const n = arr.length
   if (!n) return []
@@ -78,12 +75,10 @@ export function BirthChart({
   eclipticLongitudeMoon,
   eclipticLongitudeAscendant,
   sunConstellationName,
-  moonConstellationName, // not used for text anymore, but kept for compatibility
-  ascendantConstellationName, // not used for text anymore, but kept for compatibility
+  sunConstellationWhenUTC, // accepted but not shown anymore
   sunTropicalName,
   moonTropicalName,
   ascendantTropicalName,
-  sunConstellationWhenUTC, // still accepted but no longer shown in the legend
   signMode,
   isComputing,
 }: Props) {
@@ -91,48 +86,67 @@ export function BirthChart({
   const radius = 190
   const center = size / 2
 
-  const toPoint = (elonMaybe: unknown, r = radius) => {
-    const elon = safeNumber(elonMaybe, 0)
+  const sunHas = isFiniteNumber(eclipticLongitudeSun)
+  const moonHas = isFiniteNumber(eclipticLongitudeMoon)
+  const ascHas = isFiniteNumber(eclipticLongitudeAscendant)
+
+  const toPoint = (elon: number) => {
     const angle = 360 - elon
-    const x = center + r * Math.cos((angle * Math.PI) / 180)
-    const y = center + r * Math.sin((angle * Math.PI) / 180)
-    return { x, y, angle, elon }
+    const x = center + radius * Math.cos((angle * Math.PI) / 180)
+    const y = center + radius * Math.sin((angle * Math.PI) / 180)
+    return { x, y, elon }
   }
 
-  const sun = toPoint(eclipticLongitudeSun)
-  const moon = toPoint(eclipticLongitudeMoon)
-  const asc = toPoint(eclipticLongitudeAscendant)
+  const sun = sunHas ? toPoint(eclipticLongitudeSun as number) : null
+  const moon = moonHas ? toPoint(eclipticLongitudeMoon as number) : null
+  const asc = ascHas ? toPoint(eclipticLongitudeAscendant as number) : null
 
-  const usingStarAligned = signMode === "nytimes"
-  const baseLabels = usingStarAligned ? STAR_ALIGNED_LABELS : TROPICAL_SIGNS
-  const slices = baseLabels.length
-  const stepDeg = 360 / slices
+  // ring used for drawing labels depends on toggle
+  const baseRing = signMode === "nytimes" ? STAR_ALIGNED_LABELS : TROPICAL_SIGNS
+  const ringSlices = baseRing.length
+  const ringStep = 360 / ringSlices
 
-  // rotate labels so the Sun slice matches the active mode's chosen Sun name
-  let rotatedLabels = baseLabels
-  if (usingStarAligned) {
-    const sunSliceIndex = Math.floor(sun.elon / stepDeg) % slices
-    const targetIndex = Math.max(
-      0,
-      baseLabels.findIndex(
-        (s) => s.toLowerCase() === String(sunConstellationName ?? "").toLowerCase()
-      )
+  // independent star-aligned ring used only for text so it doesn't depend on the toggle
+  const starRing = STAR_ALIGNED_LABELS
+  const starSlices = starRing.length
+  const starStep = 360 / starSlices
+
+  // rotate the star-aligned ring so Sun's slice matches sunConstellationName
+  let rotatedStarRing = starRing
+  if (sunHas && sunConstellationName) {
+    const sunSliceIndex = Math.floor((eclipticLongitudeSun as number) / starStep) % starSlices
+    const targetIndex = starRing.findIndex(
+      (s) => s.toLowerCase() === sunConstellationName.toLowerCase()
     )
     if (targetIndex >= 0) {
-      const offset = (targetIndex - sunSliceIndex) % slices
-      rotatedLabels = rotateArray(baseLabels, offset)
+      const offset = (targetIndex - sunSliceIndex) % starSlices
+      rotatedStarRing = rotateArray(starRing, offset)
     }
   }
 
-  // helper to map ecliptic longitude to the label on the ring
-  const starAlignedNameViaRing = (elon: number): string => {
-    const idx = Math.floor(elon / stepDeg) % slices
-    return rotatedLabels[idx]
+  const starNameForElon = (elonMaybe: number | undefined): string => {
+    if (!isFiniteNumber(elonMaybe)) return "N/A"
+    const idx = Math.floor(elonMaybe / starStep) % starSlices
+    const name = rotatedStarRing[idx]
+    return name ?? "N/A"
   }
 
-  const starAlignedSunName = starAlignedNameViaRing(sun.elon)
-  const starAlignedMoonName = starAlignedNameViaRing(moon.elon)
-  const starAlignedAscName = starAlignedNameViaRing(asc.elon)
+  const starSunName = starNameForElon(eclipticLongitudeSun)
+  const starMoonName = starNameForElon(eclipticLongitudeMoon)
+  const starAscName = starNameForElon(eclipticLongitudeAscendant)
+
+  // drawing ring rotation follows toggle
+  let rotatedDrawRing = baseRing
+  if (signMode === "nytimes" && sunHas && sunConstellationName) {
+    const sunSliceIndex = Math.floor((eclipticLongitudeSun as number) / ringStep) % ringSlices
+    const targetIndex = baseRing.findIndex(
+      (s) => s.toLowerCase() === sunConstellationName.toLowerCase()
+    )
+    if (targetIndex >= 0) {
+      const offset = (targetIndex - sunSliceIndex) % ringSlices
+      rotatedDrawRing = rotateArray(baseRing, offset)
+    }
+  }
 
   return (
     <figure
@@ -144,22 +158,20 @@ export function BirthChart({
         gap: 8,
       }}
     >
-      <svg
-        width={size}
-        height={size}
-        viewBox={`0 0 ${size} ${size}`}
-        role="img"
-        aria-label="Birth chart wheel"
-      >
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Birth chart wheel">
         <circle cx={center} cy={center} r={radius} fill="none" stroke="#888" strokeWidth={2} />
 
-        {rotatedLabels.map((label, idx) => {
-          const angle = ((-idx * stepDeg) * Math.PI) / 180
+        {rotatedDrawRing.map((label, idx) => {
+          const angle = ((-idx * ringStep) * Math.PI) / 180
           const x0 = center + radius * Math.cos(angle)
           const y0 = center + radius * Math.sin(angle)
-          const mid = angle - ((stepDeg / 2) * Math.PI) / 180
+          const mid = angle - ((ringStep / 2) * Math.PI) / 180
           const lx = center + (radius - 36) * Math.cos(mid)
           const ly = center + (radius - 36) * Math.sin(mid)
+          const isSunSlice =
+            signMode === "nytimes" &&
+            sunHas &&
+            label.toLowerCase() === starSunName.toLowerCase()
           return (
             <g key={`${label}-${idx}`}>
               <line x1={center} y1={center} x2={x0} y2={y0} stroke="#666" />
@@ -170,9 +182,7 @@ export function BirthChart({
                 dominantBaseline="middle"
                 fontSize={12}
                 fill="#ddd"
-                style={{
-                  fontWeight: usingStarAligned && label === starAlignedSunName ? 700 : 600,
-                }}
+                style={{ fontWeight: isSunSlice ? 700 : 600 }}
               >
                 {label}
               </text>
@@ -180,68 +190,82 @@ export function BirthChart({
           )
         })}
 
-        <line x1={center} y1={center} x2={sun.x} y2={sun.y} stroke="#f0c419" strokeWidth={2} />
-        <circle cx={sun.x} cy={sun.y} r={6} fill="#f0c419" />
-        <text
-          x={sun.x}
-          y={sun.y}
-          dx={8}
-          dy={-8}
-          fontSize={12}
-          textAnchor="start"
-          dominantBaseline="central"
-          fill="#f0c419"
-        >
-          Sun
-        </text>
+        {/* draw body lines only when we have valid angles */}
+        {sun && (
+          <>
+            <line x1={center} y1={center} x2={sun.x} y2={sun.y} stroke="#f0c419" strokeWidth={2} />
+            <circle cx={sun.x} cy={sun.y} r={6} fill="#f0c419" />
+            <text
+              x={sun.x}
+              y={sun.y}
+              dx={8}
+              dy={-8}
+              fontSize={12}
+              textAnchor="start"
+              dominantBaseline="central"
+              fill="#f0c419"
+            >
+              Sun
+            </text>
+          </>
+        )}
 
-        <line x1={center} y1={center} x2={moon.x} y2={moon.y} stroke="#e6e6e6" strokeWidth={2} />
-        <circle cx={moon.x} cy={moon.y} r={6} fill="#e6e6e6" />
-        <text
-          x={moon.x}
-          y={moon.y}
-          dx={8}
-          dy={-8}
-          fontSize={12}
-          textAnchor="start"
-          dominantBaseline="central"
-          fill="#e6e6e6"
-        >
-          Moon
-        </text>
+        {moon && (
+          <>
+            <line x1={center} y1={center} x2={moon.x} y2={moon.y} stroke="#e6e6e6" strokeWidth={2} />
+            <circle cx={moon.x} cy={moon.y} r={6} fill="#e6e6e6" />
+            <text
+              x={moon.x}
+              y={moon.y}
+              dx={8}
+              dy={-8}
+              fontSize={12}
+              textAnchor="start"
+              dominantBaseline="central"
+              fill="#e6e6e6"
+            >
+              Moon
+            </text>
+          </>
+        )}
 
-        <line x1={center} y1={center} x2={asc.x} y2={asc.y} stroke="#8be9fd" strokeWidth={2} />
-        <circle cx={asc.x} cy={asc.y} r={6} fill="#8be9fd" />
-        <text
-          x={asc.x}
-          y={asc.y}
-          dx={8}
-          dy={-8}
-          fontSize={12}
-          textAnchor="start"
-          dominantBaseline="central"
-          fill="#8be9fd"
-        >
-          Ascendant
-        </text>
+        {asc && (
+          <>
+            <line x1={center} y1={center} x2={asc.x} y2={asc.y} stroke="#8be9fd" strokeWidth={2} />
+            <circle cx={asc.x} cy={asc.y} r={6} fill="#8be9fd" />
+            <text
+              x={asc.x}
+              y={asc.y}
+              dx={8}
+              dy={-8}
+              fontSize={12}
+              textAnchor="start"
+              dominantBaseline="central"
+              fill="#8be9fd"
+            >
+              Ascendant
+            </text>
+          </>
+        )}
       </svg>
 
+      {/* legend shows N/A when values are not available yet */}
       <div style={{ display: "grid", gap: 4, fontSize: 13, opacity: 0.95 }}>
         <div>
           <span aria-hidden="true">☉ </span>
-          Sun • Star-aligned: <strong>{starAlignedSunName}</strong> • Tropical:{" "}
-          <strong>{sunTropicalName ?? ""}</strong>
+          Sun • Star-aligned: <strong>{starSunName || "N/A"}</strong> • Tropical:{" "}
+          <strong>{sunTropicalName ?? "N/A"}</strong>
           {isComputing ? " • recalculating…" : ""}
         </div>
         <div>
           <span aria-hidden="true">☾ </span>
-          Moon • Star-aligned: <strong>{starAlignedMoonName}</strong> • Tropical:{" "}
-          <strong>{moonTropicalName ?? ""}</strong>
+          Moon • Star-aligned: <strong>{starMoonName || "N/A"}</strong> • Tropical:{" "}
+          <strong>{moonTropicalName ?? "N/A"}</strong>
         </div>
         <div>
           <span aria-hidden="true">↑ </span>
-          Ascendant • Star-aligned: <strong>{starAlignedAscName}</strong> • Tropical:{" "}
-          <strong>{ascendantTropicalName ?? ""}</strong>
+          Ascendant • Star-aligned: <strong>{starAscName || "N/A"}</strong> • Tropical:{" "}
+          <strong>{ascendantTropicalName ?? "N/A"}</strong>
         </div>
       </div>
     </figure>

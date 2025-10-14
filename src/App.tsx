@@ -1,5 +1,5 @@
 // src/App.tsx
-// Removes the extra bottom Sun line and passes all legend props to BirthChart
+// Defaults lat/lon to null and only computes when both are valid numbers
 // Never end code comments with periods
 
 import React, { useEffect, useMemo, useState } from "react"
@@ -11,8 +11,8 @@ import "./App.css"
 type FormState = {
   isoDate: string
   time: string
-  latitude: string
-  longitude: string
+  latitude: string | null
+  longitude: string | null
 }
 
 export type SignMode = "nytimes" | "tropical"
@@ -28,8 +28,8 @@ function App() {
     return {
       isoDate: `${yyyy}-${mm}-${dd}`,
       time: `${hh}:${mi}`,
-      latitude: "",
-      longitude: "",
+      latitude: null,   // start as null so Number("") is never used
+      longitude: null,  // start as null so Number("") is never used
     }
   })
 
@@ -38,17 +38,18 @@ function App() {
   const [errorText, setErrorText] = useState<string | null>(null)
   const [isComputing, setIsComputing] = useState(false)
 
-  const canCompute = useMemo(() => {
-    return (
-      formState.isoDate.length === 10 &&
-      formState.time.length >= 4 &&
-      formState.latitude.trim() !== "" &&
-      formState.longitude.trim() !== ""
-    )
+  const inputsValid = useMemo(() => {
+    if (!(formState.isoDate.length === 10 && formState.time.length >= 4)) return false
+    if (formState.latitude === null || formState.longitude === null) return false
+    const lat = Number(formState.latitude)
+    const lon = Number(formState.longitude)
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return false
+    return true
   }, [formState])
 
   useEffect(() => {
-    if (!canCompute) {
+    if (!inputsValid) {
       setSnapshot(null)
       return
     }
@@ -59,41 +60,19 @@ function App() {
       if (Number.isNaN(birthDateTime.getTime())) {
         throw new Error("Please enter a valid date and time")
       }
-
-      const latitude = Number(formState.latitude)
-      const longitude = Number(formState.longitude)
-      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-        throw new Error("Latitude and longitude must be numbers")
-      }
-      if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
-        throw new Error("Latitude must be between -90 and 90, longitude between -180 and 180")
-      }
-
-      const chart = computeChartSnapshot({
-        birthDateTime,
-        latitude,
-        longitude,
-      })
+      const latitude = Number(formState.latitude!)
+      const longitude = Number(formState.longitude!)
+      const chart = computeChartSnapshot({ birthDateTime, latitude, longitude })
       setSnapshot(chart)
     } catch (err) {
       const message =
-        err instanceof Error
-          ? err.message
-          : typeof err === "string"
-          ? err
-          : "Unexpected error"
+        err instanceof Error ? err.message : typeof err === "string" ? err : "Unexpected error"
       setErrorText(message)
       setSnapshot(null)
     } finally {
       setIsComputing(false)
     }
-  }, [canCompute, formState])
-
-  const showChart =
-    snapshot &&
-    Number.isFinite(snapshot.sun.tropical.eclipticLongitude) &&
-    Number.isFinite(snapshot.moon.tropical.eclipticLongitude) &&
-    Number.isFinite(snapshot.ascendant.eclipticLongitude)
+  }, [inputsValid, formState])
 
   return (
     <main style={{ display: "grid", gap: 24 }}>
@@ -102,14 +81,7 @@ function App() {
         Enter birth date, exact time, and location to see Sun, Moon, and Ascendant in a clean tropical wheel
       </p>
 
-      <div
-        style={{
-          display: "flex",
-          gap: 12,
-          alignItems: "center",
-          flexWrap: "wrap",
-        }}
-      >
+      <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
         <label>
           <input
             type="radio"
@@ -154,25 +126,21 @@ function App() {
 
       {errorText && <div style={{ color: "#ff6b6b" }}>{errorText}</div>}
 
-      {showChart && snapshot && (
-        <BirthChart
-          // geometry for the wheel
-          eclipticLongitudeSun={snapshot.sun.tropical.eclipticLongitude}
-          eclipticLongitudeMoon={snapshot.moon.tropical.eclipticLongitude}
-          eclipticLongitudeAscendant={snapshot.ascendant.eclipticLongitude}
-          // three-line legend props: always provide both interpretations
-          sunConstellationName={snapshot.sun.constellationNYT.name}
-          moonConstellationName={snapshot.moon.constellation.name}
-          ascendantConstellationName={snapshot.ascendant.constellation.name}
-          sunTropicalName={snapshot.sun.tropical.sign}
-          moonTropicalName={snapshot.moon.tropical.sign}
-          ascendantTropicalName={snapshot.ascendant.sign}
-          sunConstellationWhenUTC={snapshot.sun.constellationNYT.when}
-          // ring label rotation only
-          signMode={signMode}
-          isComputing={isComputing}
-        />
-      )}
+      {/* Always render the chart for stable layout */}
+      <BirthChart
+        eclipticLongitudeSun={snapshot?.sun.tropical.eclipticLongitude}
+        eclipticLongitudeMoon={snapshot?.moon.tropical.eclipticLongitude}
+        eclipticLongitudeAscendant={snapshot?.ascendant.eclipticLongitude}
+        sunConstellationName={snapshot?.sun.constellationNYT.name}
+        moonConstellationName={snapshot?.moon.constellation.name}
+        ascendantConstellationName={snapshot?.ascendant.constellation.name}
+        sunTropicalName={snapshot?.sun.tropical.sign}
+        moonTropicalName={snapshot?.moon.tropical.sign}
+        ascendantTropicalName={snapshot?.ascendant.sign}
+        sunConstellationWhenUTC={snapshot?.sun.constellationNYT.when}
+        signMode={signMode}
+        isComputing={isComputing}
+      />
     </main>
   )
 }
@@ -201,6 +169,7 @@ function parseLocalDateTime(isoDate: string, time: string): Date {
   return new Date(y, mZeroBased, d, H, M, S)
 }
 
+// unchanged tooltip
 function InfoTooltip({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
   const closeTimerRef = React.useRef<number | null>(null)
