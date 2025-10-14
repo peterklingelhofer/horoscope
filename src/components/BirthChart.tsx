@@ -4,9 +4,9 @@
 // Line labels are rendered outside the wheel using symbols ☼ ☾ ↑, centered on the ray
 // Lines end exactly at the circumference; only text sits outside
 // Only the symbol + word at the start of each legend line are colored
-// Never end code comments with periods
 
 import { useEffect, useRef, useState } from "react"
+import { COLORS } from "../theme"
 import type { SignMode } from "../App"
 
 type Props = {
@@ -58,11 +58,6 @@ const STAR_ALIGNED_LABELS: readonly string[] = [
   "Aquarius",
   "Pisces",
 ]
-
-// line colors used both on the wheel and in legend headers
-const COLOR_SUN = "#f0c419"
-const COLOR_MOON = "#e6e6e6"
-const COLOR_ASC = "#8be9fd"
 
 // shared easing for smooth but snappy motion
 const EASE = "cubic-bezier(.22,.7,.15,1)"
@@ -300,14 +295,14 @@ export function BirthChart({
               y1={center}
               x2={sunPoint.x}
               y2={sunPoint.y}
-              stroke={COLOR_SUN}
+              stroke={COLORS.sun}
               strokeWidth={2}
               strokeDasharray={radius}
               strokeDashoffset={sunDash}
               style={lineMoveTransition}
             />
-            <circle cx={sunPoint.x} cy={sunPoint.y} r={6} fill={COLOR_SUN} style={dotMoveTransition} />
-            {renderOuterLabel(center, radius, labelOffset, sunPoint, "☼", COLOR_SUN)}
+            <circle cx={sunPoint.x} cy={sunPoint.y} r={6} fill={COLORS.sun} style={dotMoveTransition} />
+            {renderOuterLabel(center, radius, labelOffset, sunPoint, "☼", COLORS.sun)}
           </>
         )}
 
@@ -319,14 +314,14 @@ export function BirthChart({
               y1={center}
               x2={moonPoint.x}
               y2={moonPoint.y}
-              stroke={COLOR_MOON}
+              stroke={COLORS.moon}
               strokeWidth={2}
               strokeDasharray={radius}
               strokeDashoffset={moonDash}
               style={lineMoveTransition}
             />
-            <circle cx={moonPoint.x} cy={moonPoint.y} r={6} fill={COLOR_MOON} style={dotMoveTransition} />
-            {renderOuterLabel(center, radius, labelOffset, moonPoint, "☾", COLOR_MOON)}
+            <circle cx={moonPoint.x} cy={moonPoint.y} r={6} fill={COLORS.moon} style={dotMoveTransition} />
+            {renderOuterLabel(center, radius, labelOffset, moonPoint, "☾", COLORS.moon)}
           </>
         )}
 
@@ -338,14 +333,14 @@ export function BirthChart({
               y1={center}
               x2={ascPoint.x}
               y2={ascPoint.y}
-              stroke={COLOR_ASC}
+              stroke={COLORS.asc}
               strokeWidth={2}
               strokeDasharray={radius}
               strokeDashoffset={ascDash}
               style={lineMoveTransition}
             />
-            <circle cx={ascPoint.x} cy={ascPoint.y} r={6} fill={COLOR_ASC} style={dotMoveTransition} />
-            {renderOuterLabel(center, radius, labelOffset, ascPoint, "↑", COLOR_ASC)}
+            <circle cx={ascPoint.x} cy={ascPoint.y} r={6} fill={COLORS.asc} style={dotMoveTransition} />
+            {renderOuterLabel(center, radius, labelOffset, ascPoint, "↑", COLORS.asc)}
           </>
         )}
       </svg>
@@ -353,7 +348,7 @@ export function BirthChart({
       {/* legend with only the left header colored per line */}
       <div style={{ display: "grid", gap: 4, fontSize: 13, opacity: 0.95 }}>
         <div>
-          <span style={{ color: COLOR_SUN }}>
+          <span style={{ color: COLORS.sun }}>
             <span aria-hidden="true">☼ </span>Sun
           </span>
           {" • Star-aligned: "}
@@ -363,7 +358,7 @@ export function BirthChart({
           {isComputing ? " • recalculating…" : ""}
         </div>
         <div>
-          <span style={{ color: COLOR_MOON }}>
+          <span style={{ color: COLORS.moon }}>
             <span aria-hidden="true">☾ </span>Moon
           </span>
           {" • Star-aligned: "}
@@ -372,7 +367,7 @@ export function BirthChart({
           <strong>{moonTropicalName ?? "N/A"}</strong>
         </div>
         <div>
-          <span style={{ color: COLOR_ASC }}>
+          <span style={{ color: COLORS.asc }}>
             <span aria-hidden="true">↑ </span>Ascendant
           </span>
           {" • Star-aligned: "}
