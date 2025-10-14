@@ -1,10 +1,12 @@
 // src/components/BirthChart.tsx
-// Rotate labels only based on toggle and date/time derived Sun position, never lat/lon
-// Line labels are rendered outside the wheel using symbols ☼ ☾ ↑
+// Animated lines: grow on first appearance and ease to new positions on updates without flicker
+// Labels rotate only based on toggle and date/time derived Sun position, never lat/lon
+// Line labels are rendered outside the wheel using symbols ☼ ☾ ↑, centered on the ray
 // Lines end exactly at the circumference; only text sits outside
 // Only the symbol + word at the start of each legend line are colored
 // Never end code comments with periods
 
+import { useEffect, useMemo, useRef, useState } from "react"
 import type { SignMode } from "../App"
 
 type Props = {
@@ -62,6 +64,9 @@ const COLOR_SUN = "#f0c419"
 const COLOR_MOON = "#e6e6e6"
 const COLOR_ASC = "#8be9fd"
 
+// shared easing for smooth but snappy motion
+const EASE = "cubic-bezier(.22,.7,.15,1)"
+
 function isFiniteNumber(v: unknown): v is number {
   return typeof v === "number" && Number.isFinite(v)
 }
@@ -104,7 +109,10 @@ function renderOuterLabel(
       textAnchor="middle"
       dominantBaseline="middle"
       fill={fill}
-      style={{ fontWeight: 700 }}
+      style={{
+        fontWeight: 700,
+        transition: `x 220ms ${EASE}, y 220ms ${EASE}`,
+      }}
     >
       {symbol}
     </text>
@@ -126,7 +134,7 @@ export function BirthChart({
   const size = 460
   const radius = 190
   const center = size / 2
-  const labelOffset = 28 // increased offset to move outer labels farther from the circle
+  const labelOffset = 28 // distance for line labels outside the circumference
 
   const sunPoint = isFiniteNumber(eclipticLongitudeSun)
     ? toPoint(center, center, radius, eclipticLongitudeSun as number)
@@ -137,6 +145,58 @@ export function BirthChart({
   const ascPoint = isFiniteNumber(eclipticLongitudeAscendant)
     ? toPoint(center, center, radius, eclipticLongitudeAscendant as number)
     : null
+
+  // stroke-dashoffset animation state per body to avoid out-in-out flicker
+  const [sunDash, setSunDash] = useState<number>(radius)
+  const [moonDash, setMoonDash] = useState<number>(radius)
+  const [ascDash, setAscDash] = useState<number>(radius)
+
+  const hadSun = useRef<boolean>(false)
+  const hadMoon = useRef<boolean>(false)
+  const hadAsc = useRef<boolean>(false)
+
+  // when a line first appears, start at radius and animate to 0 on next frame
+  useEffect(() => {
+    const present = !!sunPoint
+    if (present && !hadSun.current) {
+      setSunDash(radius)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => setSunDash(0))
+      })
+      hadSun.current = true
+    } else if (!present) {
+      hadSun.current = false
+      setSunDash(radius)
+    }
+  }, [!!sunPoint, radius])
+
+  useEffect(() => {
+    const present = !!moonPoint
+    if (present && !hadMoon.current) {
+      setMoonDash(radius)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => setMoonDash(0))
+      })
+      hadMoon.current = true
+    } else if (!present) {
+      hadMoon.current = false
+      setMoonDash(radius)
+    }
+  }, [!!moonPoint, radius])
+
+  useEffect(() => {
+    const present = !!ascPoint
+    if (present && !hadAsc.current) {
+      setAscDash(radius)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => setAscDash(0))
+      })
+      hadAsc.current = true
+    } else if (!present) {
+      hadAsc.current = false
+      setAscDash(radius)
+    }
+  }, [!!ascPoint, radius])
 
   // label set based on toggle
   const drawLabels = signMode === "starAligned" ? STAR_ALIGNED_LABELS : TROPICAL_LABELS
@@ -186,6 +246,10 @@ export function BirthChart({
   const starAlignedMoonName = nameViaStarRing(eclipticLongitudeMoon)
   const starAlignedAscName = nameViaStarRing(eclipticLongitudeAscendant)
 
+  // reusable transition style snippets for smooth movement
+  const lineMoveTransition = { transition: `x2 220ms ${EASE}, y2 220ms ${EASE}, stroke-dashoffset 420ms ${EASE}` } as const
+  const dotMoveTransition = { transition: `cx 220ms ${EASE}, cy 220ms ${EASE}` } as const
+
   return (
     <figure
       style={{
@@ -228,29 +292,59 @@ export function BirthChart({
           )
         })}
 
-        {/* Sun line and marker, with label outside */}
+        {/* Sun line and marker */}
         {sunPoint && (
           <>
-            <line x1={center} y1={center} x2={sunPoint.x} y2={sunPoint.y} stroke={COLOR_SUN} strokeWidth={2} />
-            <circle cx={sunPoint.x} cy={sunPoint.y} r={6} fill={COLOR_SUN} />
+            <line
+              x1={center}
+              y1={center}
+              x2={sunPoint.x}
+              y2={sunPoint.y}
+              stroke={COLOR_SUN}
+              strokeWidth={2}
+              strokeDasharray={radius}
+              strokeDashoffset={sunDash}
+              style={lineMoveTransition}
+            />
+            <circle cx={sunPoint.x} cy={sunPoint.y} r={6} fill={COLOR_SUN} style={dotMoveTransition} />
             {renderOuterLabel(center, radius, labelOffset, sunPoint, "☼", COLOR_SUN)}
           </>
         )}
 
-        {/* Moon line and marker, with label outside */}
+        {/* Moon line and marker */}
         {moonPoint && (
           <>
-            <line x1={center} y1={center} x2={moonPoint.x} y2={moonPoint.y} stroke={COLOR_MOON} strokeWidth={2} />
-            <circle cx={moonPoint.x} cy={moonPoint.y} r={6} fill={COLOR_MOON} />
+            <line
+              x1={center}
+              y1={center}
+              x2={moonPoint.x}
+              y2={moonPoint.y}
+              stroke={COLOR_MOON}
+              strokeWidth={2}
+              strokeDasharray={radius}
+              strokeDashoffset={moonDash}
+              style={lineMoveTransition}
+            />
+            <circle cx={moonPoint.x} cy={moonPoint.y} r={6} fill={COLOR_MOON} style={dotMoveTransition} />
             {renderOuterLabel(center, radius, labelOffset, moonPoint, "☾", COLOR_MOON)}
           </>
         )}
 
-        {/* Ascendant line and marker, with label outside */}
+        {/* Ascendant line and marker */}
         {ascPoint && (
           <>
-            <line x1={center} y1={center} x2={ascPoint.x} y2={ascPoint.y} stroke={COLOR_ASC} strokeWidth={2} />
-            <circle cx={ascPoint.x} cy={ascPoint.y} r={6} fill={COLOR_ASC} />
+            <line
+              x1={center}
+              y1={center}
+              x2={ascPoint.x}
+              y2={ascPoint.y}
+              stroke={COLOR_ASC}
+              strokeWidth={2}
+              strokeDasharray={radius}
+              strokeDashoffset={ascDash}
+              style={lineMoveTransition}
+            />
+            <circle cx={ascPoint.x} cy={ascPoint.y} r={6} fill={COLOR_ASC} style={dotMoveTransition} />
             {renderOuterLabel(center, radius, labelOffset, ascPoint, "↑", COLOR_ASC)}
           </>
         )}
