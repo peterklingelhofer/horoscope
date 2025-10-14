@@ -1,5 +1,5 @@
 // src/App.tsx
-// Toggle now reads "Star-aligned" and includes an info tooltip with NYT link
+// Removes the extra bottom Sun line and passes all legend props to BirthChart
 // Never end code comments with periods
 
 import React, { useEffect, useMemo, useState } from "react"
@@ -33,9 +33,7 @@ function App() {
     }
   })
 
-  // Default to star-aligned mode
   const [signMode, setSignMode] = useState<SignMode>("nytimes")
-
   const [snapshot, setSnapshot] = useState<ChartSnapshot | null>(null)
   const [errorText, setErrorText] = useState<string | null>(null)
   const [isComputing, setIsComputing] = useState(false)
@@ -97,12 +95,6 @@ function App() {
     Number.isFinite(snapshot.moon.tropical.eclipticLongitude) &&
     Number.isFinite(snapshot.ascendant.eclipticLongitude)
 
-  // Caption label honors the toggle
-  const sunPrimaryLabel =
-    signMode === "nytimes"
-      ? snapshot?.sun.constellationNYT.name
-      : snapshot?.sun.tropical.sign
-
   return (
     <main style={{ display: "grid", gap: 24 }}>
       <h1 style={{ margin: 0 }}>Your birth chart, minimally and accurately</h1>
@@ -110,7 +102,6 @@ function App() {
         Enter birth date, exact time, and location to see Sun, Moon, and Ascendant in a clean tropical wheel
       </p>
 
-      {/* Mode toggle with info tooltip */}
       <div
         style={{
           display: "flex",
@@ -143,7 +134,7 @@ function App() {
 
         <InfoTooltip>
           <div style={{ maxWidth: 360, lineHeight: 1.35 }}>
-            <strong>Star-aligned</strong> uses the constellation behind the Sun at 12:00 UTC in the current year on your month and day, which can include Ophiuchus
+            <strong>Star-aligned</strong> uses the constellation behind the Sun at 12:00 UTC in the current year on your month and day, and constellations for Moon and Ascendant at your birth moment
             <br />
             <strong>Tropical</strong> divides the ecliptic into 12 equal 30° segments starting at the March equinox, aligning signs with seasons rather than today’s star positions
             <br />
@@ -163,26 +154,24 @@ function App() {
 
       {errorText && <div style={{ color: "#ff6b6b" }}>{errorText}</div>}
 
-      {showChart && (
+      {showChart && snapshot && (
         <BirthChart
-          eclipticLongitudeSun={snapshot!.sun.tropical.eclipticLongitude}
-          eclipticLongitudeMoon={snapshot!.moon.tropical.eclipticLongitude}
-          eclipticLongitudeAscendant={snapshot!.ascendant.eclipticLongitude}
-          tropicalSignSun={sunPrimaryLabel} // caption label honors toggle
-          tropicalSignMoon={snapshot!.moon.tropical.sign}
-          tropicalSignAscendant={snapshot!.ascendant.sign}
-          sunConstellationName={snapshot!.sun.constellationNYT.name}
+          // geometry for the wheel
+          eclipticLongitudeSun={snapshot.sun.tropical.eclipticLongitude}
+          eclipticLongitudeMoon={snapshot.moon.tropical.eclipticLongitude}
+          eclipticLongitudeAscendant={snapshot.ascendant.eclipticLongitude}
+          // three-line legend props: always provide both interpretations
+          sunConstellationName={snapshot.sun.constellationNYT.name}
+          moonConstellationName={snapshot.moon.constellation.name}
+          ascendantConstellationName={snapshot.ascendant.constellation.name}
+          sunTropicalName={snapshot.sun.tropical.sign}
+          moonTropicalName={snapshot.moon.tropical.sign}
+          ascendantTropicalName={snapshot.ascendant.sign}
+          sunConstellationWhenUTC={snapshot.sun.constellationNYT.when}
+          // ring label rotation only
           signMode={signMode}
           isComputing={isComputing}
         />
-      )}
-
-      {snapshot && (
-        <div style={{ fontSize: 13, opacity: 0.9 }}>
-          Sun • Star-aligned: <strong>{snapshot.sun.constellationNYT.name}</strong> at 12:00 UTC on{" "}
-          <strong>{snapshot.sun.constellationNYT.when.toUTCString().slice(5, 16)}</strong> • Tropical:{" "}
-          <strong>{snapshot.sun.tropical.sign}</strong>
-        </div>
       )}
     </main>
   )
@@ -212,7 +201,6 @@ function parseLocalDateTime(isoDate: string, time: string): Date {
   return new Date(y, mZeroBased, d, H, M, S)
 }
 
-// in src/App.tsx, replace the existing InfoTooltip with this complete function
 function InfoTooltip({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
   const closeTimerRef = React.useRef<number | null>(null)
@@ -315,4 +303,3 @@ function InfoTooltip({ children }: { children: React.ReactNode }) {
     </span>
   )
 }
-

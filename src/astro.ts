@@ -1,7 +1,8 @@
 // src/astro.ts
-// Compute Sun and Moon tropical longitudes, IAU constellations, Ascendant
-// Adds constellationNYT: constellation behind the Sun at 12:00 UTC in the current year on the entered month/day
-// Constellation classification uses J2000 astrometric RA/Dec with a zero-parallax observer at lat=0 lon=0
+// Compute Sun and Moon tropical longitudes, IAU constellations, and the Ascendant
+// Star-aligned basis uses IAU constellations in J2000 astrometric frame
+// Sun.constellationNYT is at 12:00 UTC in the current year on the same month/day
+// Ascendant constellation is taken at the Ascendant ecliptic longitude projected to J2000 RA/Dec
 // Never end code comments with periods
 
 import * as Astronomy from "astronomy-engine"
@@ -20,7 +21,7 @@ export type SunSnapshot = {
     ra: number
     dec: number
   }
-  // constellation at 12:00 UTC in the current year for the same month/day, per NYT method
+  // NYT basis: constellation at 12:00 UTC in the current year for same month/day
   constellationNYT: {
     name: string
     abbreviation: string
@@ -46,6 +47,12 @@ export type AscendantSnapshot = {
   eclipticLongitude: number
   sign: string
   signIndex: number
+  constellation: {
+    name: string
+    abbreviation: string
+    raHours: number
+    decDeg: number
+  }
 }
 
 export type ChartSnapshot = {
@@ -98,8 +105,8 @@ export function computeSunSnapshot(args: {
     Astronomy.Body.Sun,
     time,
     GEOCENTER,
-    false,
-    false
+    false, // J2000
+    false  // astrometric
   )
   const c = Astronomy.Constellation(equJ2000.ra, equJ2000.dec)
 
@@ -197,13 +204,42 @@ export function computeChartSnapshot(args: {
   const ascSignIndex = Math.floor(lambdaAsc / 30) % 12
   const ascSign = SIGN_LABELS[ascSignIndex]
 
+  // Ascendant constellation: project the ecliptic point (beta=0) at lambdaAsc to J2000 RA/Dec
+  const ascEq = eclipticLongitudeToEquatorialJ2000(lambdaAsc, 23.4392911)
+  const ac = Astronomy.Constellation(ascEq.raHours, ascEq.decDeg)
+
   const ascendant: AscendantSnapshot = {
     eclipticLongitude: lambdaAsc,
     sign: ascSign,
     signIndex: ascSignIndex,
+    constellation: {
+      name: ac.name,
+      abbreviation: ac.symbol,
+      raHours: ascEq.raHours,
+      decDeg: ascEq.decDeg,
+    },
   }
 
   return { sun, moon, ascendant }
+}
+
+function eclipticLongitudeToEquatorialJ2000(lambdaDeg: number, obliquityDeg: number) {
+  // for ecliptic latitude beta=0
+  const λ = deg2rad(lambdaDeg)
+  const ε = deg2rad(obliquityDeg)
+  const sinλ = Math.sin(λ)
+  const cosλ = Math.cos(λ)
+  const sinε = Math.sin(ε)
+  const cosε = Math.cos(ε)
+
+  const y = sinλ * cosε
+  const x = cosλ
+  let alpha = Math.atan2(y, x) // radians
+  if (alpha < 0) alpha += 2 * Math.PI
+  const delta = Math.asin(sinε * sinλ)
+  const raHours = (alpha * 12) / Math.PI
+  const decDeg = rad2deg(delta)
+  return { raHours, decDeg }
 }
 
 function normalizeDegrees(value: number): number {
