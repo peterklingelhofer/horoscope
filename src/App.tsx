@@ -1,6 +1,4 @@
 // src/App.tsx
-// Defaults lat/lon to null and only computes when both are valid numbers
-// Never end code comments with periods
 
 import React, { useEffect, useMemo, useState } from "react"
 import { BirthChart } from "./components/BirthChart"
@@ -10,7 +8,7 @@ import "./App.css"
 
 type FormState = {
   isoDate: string
-  time: string
+  time: stringb
   latitude: string | null
   longitude: string | null
 }
@@ -78,7 +76,7 @@ function App() {
     <main style={{ display: "grid", gap: 24 }}>
       <h1 style={{ margin: 0 }}>Your birth chart, minimally and accurately</h1>
       <p style={{ marginTop: -12 }}>
-        Enter birth date, exact time, and location to see Sun, Moon, and Ascendant in a clean tropical wheel
+        Enter birth date, exact time, and location to see Sun, Moon, and Ascendant for star-aligned and tropical interpretations
       </p>
 
       <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
