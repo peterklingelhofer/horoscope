@@ -1,25 +1,24 @@
 // src/components/BirthChart.tsx
-// Always render the wheel; hide body lines until inputs are valid
-// Legend shows N/A until values are available
-// Star-aligned names come via a rotated star-aligned ring; tropical names are passed in
+// Rotate labels only based on toggle and date/time derived Sun position, never lat/lon
 // Never end code comments with periods
 
 import type { SignMode } from "../App"
 
 type Props = {
+  // lines for bodies, optional until inputs are valid
   eclipticLongitudeSun: number | undefined
   eclipticLongitudeMoon: number | undefined
   eclipticLongitudeAscendant: number | undefined
 
-  // star-aligned anchor for Sun naming on the ring
-  sunConstellationName: string | undefined
+  // rotation inputs derived from date/time only
+  sunEclipticLongitudeForRotation: number | undefined
+  sunStarAlignedNameForRotation: string | undefined
 
   // tropical names for legend
   sunTropicalName: string | undefined
   moonTropicalName: string | undefined
   ascendantTropicalName: string | undefined
 
-  // kept aligned with the app toggle
   signMode: SignMode
   isComputing: boolean
 }
@@ -55,21 +54,21 @@ const STAR_ALIGNED_LABELS: readonly string[] = [
   "Pisces",
 ]
 
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value)
+function isFiniteNumber(v: unknown): v is number {
+  return typeof v === "number" && Number.isFinite(v)
 }
 
-function rotateArray<T>(arr: readonly T[], offset: number): T[] {
+function rotate<T>(arr: readonly T[], offset: number): T[] {
   const n = arr.length
-  if (n === 0) return []
+  if (!n) return []
   const k = ((offset % n) + n) % n
   return [...arr.slice(k), ...arr.slice(0, k)]
 }
 
-function getPoint(center: number, radius: number, eclipticLongitude: number) {
+function toPoint(cx: number, cy: number, r: number, eclipticLongitude: number) {
   const angle = 360 - eclipticLongitude
-  const x = center + radius * Math.cos((angle * Math.PI) / 180)
-  const y = center + radius * Math.sin((angle * Math.PI) / 180)
+  const x = cx + r * Math.cos((angle * Math.PI) / 180)
+  const y = cy + r * Math.sin((angle * Math.PI) / 180)
   return { x, y }
 }
 
@@ -77,7 +76,8 @@ export function BirthChart({
   eclipticLongitudeSun,
   eclipticLongitudeMoon,
   eclipticLongitudeAscendant,
-  sunConstellationName,
+  sunEclipticLongitudeForRotation,
+  sunStarAlignedNameForRotation,
   sunTropicalName,
   moonTropicalName,
   ascendantTropicalName,
@@ -88,59 +88,62 @@ export function BirthChart({
   const radius = 190
   const center = size / 2
 
-  const hasSun = isFiniteNumber(eclipticLongitudeSun)
-  const hasMoon = isFiniteNumber(eclipticLongitudeMoon)
-  const hasAsc = isFiniteNumber(eclipticLongitudeAscendant)
+  const sunPoint = isFiniteNumber(eclipticLongitudeSun)
+    ? toPoint(center, center, radius, eclipticLongitudeSun as number)
+    : null
+  const moonPoint = isFiniteNumber(eclipticLongitudeMoon)
+    ? toPoint(center, center, radius, eclipticLongitudeMoon as number)
+    : null
+  const ascPoint = isFiniteNumber(eclipticLongitudeAscendant)
+    ? toPoint(center, center, radius, eclipticLongitudeAscendant as number)
+    : null
 
-  const sunPoint = hasSun ? getPoint(center, radius, eclipticLongitudeSun as number) : null
-  const moonPoint = hasMoon ? getPoint(center, radius, eclipticLongitudeMoon as number) : null
-  const ascPoint = hasAsc ? getPoint(center, radius, eclipticLongitudeAscendant as number) : null
-
-  // drawing ring follows the toggle
+  // label set based on toggle
   const drawLabels = signMode === "starAligned" ? STAR_ALIGNED_LABELS : TROPICAL_LABELS
   const drawSlices = drawLabels.length
   const drawStep = 360 / drawSlices
 
-  // independent star-aligned ring used to compute legend starAligned names so they do not depend on toggle
+  // star-aligned ring used to generate star-aligned names for legend
   const starLabels = STAR_ALIGNED_LABELS
   const starSlices = starLabels.length
   const starStep = 360 / starSlices
 
-  // rotate the star-aligned ring so the Sun slice matches the provided Sun star-aligned name
+  // compute rotation offset using only date/time derived inputs
+  let rotatedDrawLabels = drawLabels
   let rotatedStarLabels = starLabels
-  if (hasSun && sunConstellationName) {
-    const sunSliceIndex = Math.floor((eclipticLongitudeSun as number) / starStep) % starSlices
-    const targetIndex = starLabels.findIndex(
-      (s) => s.toLowerCase() === sunConstellationName.toLowerCase()
+
+  if (
+    isFiniteNumber(sunEclipticLongitudeForRotation) &&
+    typeof sunStarAlignedNameForRotation === "string" &&
+    sunStarAlignedNameForRotation.length > 0
+  ) {
+    const starSunSlice = Math.floor((sunEclipticLongitudeForRotation as number) / starStep) % starSlices
+    const starTarget = starLabels.findIndex(
+      (s) => s.toLowerCase() === sunStarAlignedNameForRotation.toLowerCase()
     )
-    if (targetIndex >= 0) {
-      const offset = (targetIndex - sunSliceIndex) % starSlices
-      rotatedStarLabels = rotateArray(starLabels, offset)
+    const starOffset = starTarget >= 0 ? (starTarget - starSunSlice) % starSlices : 0
+    rotatedStarLabels = rotate(starLabels, starOffset)
+
+    if (signMode === "starAligned") {
+      // keep drawLabels in sync when star-aligned is selected so the visible ring matches
+      const drawSunSlice = Math.floor((sunEclipticLongitudeForRotation as number) / drawStep) % drawSlices
+      const drawTarget = drawLabels.findIndex(
+        (s) => s.toLowerCase() === sunStarAlignedNameForRotation.toLowerCase()
+      )
+      const drawOffset = drawTarget >= 0 ? (drawTarget - drawSunSlice) % drawSlices : 0
+      rotatedDrawLabels = rotate(drawLabels, drawOffset)
     }
   }
 
-  const getStarAlignedNameViaRing = (elonMaybe: number | undefined): string => {
-    if (!isFiniteNumber(elonMaybe)) return "N/A"
-    const idx = Math.floor((elonMaybe as number) / starStep) % starSlices
+  const nameViaStarRing = (elon: number | undefined): string => {
+    if (!isFiniteNumber(elon)) return "N/A"
+    const idx = Math.floor(elon / starStep) % starSlices
     return rotatedStarLabels[idx] ?? "N/A"
   }
 
-  const starAlignedSunName = getStarAlignedNameViaRing(eclipticLongitudeSun)
-  const starAlignedMoonName = getStarAlignedNameViaRing(eclipticLongitudeMoon)
-  const starAlignedAscName = getStarAlignedNameViaRing(eclipticLongitudeAscendant)
-
-  // drawing ring rotation for labels, only when in starAligned mode
-  let rotatedDrawLabels = drawLabels
-  if (signMode === "starAligned" && hasSun && sunConstellationName) {
-    const sunSliceIndex = Math.floor((eclipticLongitudeSun as number) / drawStep) % drawSlices
-    const targetIndex = drawLabels.findIndex(
-      (s) => s.toLowerCase() === sunConstellationName.toLowerCase()
-    )
-    if (targetIndex >= 0) {
-      const offset = (targetIndex - sunSliceIndex) % drawSlices
-      rotatedDrawLabels = rotateArray(drawLabels, offset)
-    }
-  }
+  const starAlignedSunName = nameViaStarRing(eclipticLongitudeSun)
+  const starAlignedMoonName = nameViaStarRing(eclipticLongitudeMoon)
+  const starAlignedAscName = nameViaStarRing(eclipticLongitudeAscendant)
 
   return (
     <figure
@@ -164,8 +167,8 @@ export function BirthChart({
           const ly = center + (radius - 36) * Math.sin(mid)
           const highlight =
             signMode === "starAligned" &&
-            hasSun &&
-            label.toLowerCase() === starAlignedSunName.toLowerCase()
+            typeof sunStarAlignedNameForRotation === "string" &&
+            label.toLowerCase() === sunStarAlignedNameForRotation.toLowerCase()
           return (
             <g key={`${label}-${idx}`}>
               <line x1={center} y1={center} x2={x0} y2={y0} stroke="#666" />
@@ -184,7 +187,6 @@ export function BirthChart({
           )
         })}
 
-        {/* draw body lines only when available */}
         {sunPoint && (
           <>
             <line x1={center} y1={center} x2={sunPoint.x} y2={sunPoint.y} stroke="#f0c419" strokeWidth={2} />
