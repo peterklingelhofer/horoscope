@@ -222,7 +222,7 @@ export function LocationSearch({ onPick, helperText }: Props) {
         <input
           ref={inputRef}
           type="text"
-          placeholder="City, region, ZIP code or country"
+          placeholder="City, region, ZIP code or country (avoid acronyms)"
           value={query}
           onChange={(e) => {
             setQuery(e.target.value)
