@@ -129,7 +129,7 @@ export function BirthChart({
   const size = 460
   const radius = 190
   const center = size / 2
-  const labelOffset = 28 // distance for line labels outside the circumference
+  const labelOffset = 28
 
   const sunPoint = isFiniteNumber(eclipticLongitudeSun)
     ? toPoint(center, center, radius, eclipticLongitudeSun as number)
@@ -241,9 +241,10 @@ export function BirthChart({
   const starAlignedMoonName = nameViaStarRing(eclipticLongitudeMoon)
   const starAlignedAscName = nameViaStarRing(eclipticLongitudeAscendant)
 
-  // reusable transition style snippets for smooth movement
-  const lineMoveTransition = { transition: `x2 220ms ${EASE}, y2 220ms ${EASE}, stroke-dashoffset 420ms ${EASE}` } as const
-  const dotMoveTransition = { transition: `cx 220ms ${EASE}, cy 220ms ${EASE}` } as const
+  const lineMoveTransition: React.CSSProperties | undefined = {
+    transition: `x2 220ms ${EASE}, y2 220ms ${EASE}, stroke-dashoffset 420ms ${EASE}`,
+  } as const
+  const dotMoveTransition: React.CSSProperties | undefined = { transition: `cx 220ms ${EASE}, cy 220ms ${EASE}` } as const
 
   return (
     <figure
@@ -253,9 +254,17 @@ export function BirthChart({
         display: "grid",
         justifyItems: "center",
         gap: 8,
+        width: "100%",
+        maxWidth: 460,
       }}
     >
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Birth chart wheel">
+      <svg
+        role="img"
+        aria-label="Birth chart wheel"
+        viewBox={`0 0 ${size} ${size}`}
+        width="100%"
+        height="auto"
+      >
         <circle cx={center} cy={center} r={radius} fill="none" stroke="#888" strokeWidth={2} />
 
         {rotatedDrawLabels.map((label, idx) => {
@@ -345,8 +354,16 @@ export function BirthChart({
         )}
       </svg>
 
-      {/* legend with only the left header colored per line */}
-      <div style={{ display: "grid", gap: 4, fontSize: 13, opacity: 0.95 }}>
+      <div
+        style={{
+          display: "grid",
+          gap: 4,
+          fontSize: 13,
+          opacity: 0.95,
+          width: "100%",
+          textAlign: "center",
+        }}
+      >
         <div>
           <span style={{ color: COLORS.sun }}>
             <span aria-hidden="true">☼ </span>Sun

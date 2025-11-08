@@ -25,7 +25,7 @@ export function BirthForm({ value, onChange }: Props) {
       onSubmit={(e) => e.preventDefault()}
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(4, minmax(200px, 1fr))",
+        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
         gap: 12,
         alignItems: "end",
       }}

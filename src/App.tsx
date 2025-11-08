@@ -86,62 +86,58 @@ function App() {
   const sunStarAlignedNameForRotation = snapshot?.sun?.starAlignedAnchor?.name
 
 
-return (
-  <main style={{ display: "grid", gap: 16 }}>
-    <h1 style={{ margin: 0 }}>Your birth chart, minimally and accurately</h1>
-    <p style={{ marginTop: -12 }}>
-      Enter birth date, exact time, and location to see Sun, Moon, and Ascendant for star-aligned and tropical interpretations
-    </p>
+  return (
+    <main style={{ display: "grid", gap: 16 }}>
+      <h1 style={{ margin: 0 }}>Your birth chart, minimally and accurately</h1>
+      <p style={{ marginTop: -12 }}>
+        Enter birth date, exact time, and location to see Sun, Moon, and Ascendant for star-aligned and tropical interpretations
+      </p>
 
-    {/* top grid uses same 4-column template as the form for perfect alignment */}
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(4, minmax(200px, 1fr))",
-        gap: 12,
-        alignItems: "center",
-      }}
-    >
-      {/* Mode controls span columns 1-2 */}
-      <div style={{ gridColumn: "1 / span 2" }}>
-        <ModeControls signMode={signMode} setSignMode={setSignMode} />
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: 12,
+          alignItems: "center",
+        }}
+      >
+        <div>
+          <ModeControls signMode={signMode} setSignMode={setSignMode} />
+        </div>
+        <div>
+          <LocationSearch
+            helperText={pickedLabel ? `Picked: ${pickedLabel}` : ""}
+            onPick={(lat, lon, label) => {
+              setPickedLabel(label)
+              setFormState((prev) => ({
+                ...prev,
+                latitude: lat.toFixed(4),
+                longitude: lon.toFixed(4),
+              }))
+            }}
+          />
+        </div>
       </div>
 
-      {/* LocationSearch spans columns 3-4 so it aligns with latitude/longitude below */}
-      <div style={{ gridColumn: "3 / span 2", justifySelf: "stretch" }}>
-        <LocationSearch
-          helperText={pickedLabel ? `Picked: ${pickedLabel}` : ""}
-          onPick={(lat, lon, label) => {
-            setPickedLabel(label)
-            setFormState((prev) => ({
-              ...prev,
-              latitude: lat.toFixed(4),
-              longitude: lon.toFixed(4),
-            }))
-          }}
+      <BirthForm value={formState} onChange={setFormState} />
+
+      {errorText && <div style={{ color: "#ff6b6b" }}>{errorText}</div>}
+      <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
+        <BirthChart
+          eclipticLongitudeSun={sunElon}
+          eclipticLongitudeMoon={moonElon}
+          eclipticLongitudeAscendant={ascElon}
+          sunEclipticLongitudeForRotation={sunElonForRotation}
+          sunStarAlignedNameForRotation={sunStarAlignedNameForRotation}
+          sunTropicalName={sunTropicalName}
+          moonTropicalName={moonTropicalName}
+          ascendantTropicalName={ascTropicalName}
+          signMode={signMode}
+          isComputing={isComputing}
         />
       </div>
-    </div>
-
-    {/* form uses the same 4-col grid for exact vertical alignment */}
-    <BirthForm value={formState} onChange={setFormState} />
-
-    {errorText && <div style={{ color: "#ff6b6b" }}>{errorText}</div>}
-
-    <BirthChart
-      eclipticLongitudeSun={sunElon}
-      eclipticLongitudeMoon={moonElon}
-      eclipticLongitudeAscendant={ascElon}
-      sunEclipticLongitudeForRotation={sunElonForRotation}
-      sunStarAlignedNameForRotation={sunStarAlignedNameForRotation}
-      sunTropicalName={sunTropicalName}
-      moonTropicalName={moonTropicalName}
-      ascendantTropicalName={ascTropicalName}
-      signMode={signMode}
-      isComputing={isComputing}
-    />
-  </main>
-)
+    </main>
+  )
 
 }
 
@@ -257,7 +253,7 @@ function InfoTooltip({ children }: { children: React.ReactNode }) {
             borderRadius: 8,
             padding: "10px 12px",
             boxShadow: "0 6px 24px rgba(0,0,0,0.35)",
-            width: 360,
+            width: "min(360px, calc(100vw - 32px))",
             pointerEvents: "auto",
           }}
         >
